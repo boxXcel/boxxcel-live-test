@@ -2,79 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Signing in…</title>
 </head>
 <body>
-  <p style="font-family:Arial,sans-serif;padding:16px;">Signing you in…</p>
-
 <script>
 (async () => {
-  // ===== CONFIG (MUST MATCH YOUR MAIN INDEX SETTINGS) =====
-  const COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
-  const CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
-
-  // Use the current domain (works on amplifyapp.com AND boxxcel.com)
-  const ORIGIN = window.location.origin;
-  const REDIRECT_URI = ORIGIN + "/auth/callback.html";
-
-  // ===== READ THE CODE =====
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
-  const error = params.get("error");
-  const errorDesc = params.get("error_description");
-
-  if (error) {
-    document.body.innerHTML = "<pre>OAuth error: " + error + "\n" + (errorDesc || "") + "</pre>";
-    return;
-  }
 
   if (!code) {
-    document.body.innerHTML = "<pre>No code in URL. Nothing to do.</pre>";
+    document.body.innerText = "No code in URL. Nothing to do.";
     return;
   }
 
-  // ===== GET PKCE VERIFIER =====
   const verifier = sessionStorage.getItem("pkce_verifier");
   if (!verifier) {
-    document.body.innerHTML =
-      "<pre>Missing pkce_verifier in sessionStorage.\n\nFix: start login again from the Login button.</pre>";
+    document.body.innerText = "Missing PKCE verifier.";
     return;
   }
 
-  // ===== EXCHANGE CODE FOR TOKENS =====
-  const body = new URLSearchParams();
-  body.set("grant_type", "authorization_code");
-  body.set("client_id", CLIENT_ID);
-  body.set("code", code);
-  body.set("redirect_uri", REDIRECT_URI);
-  body.set("code_verifier", verifier);
+  const tokenEndpoint =
+    "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com/oauth2/token";
 
-  const tokenRes = await fetch(COGNITO_DOMAIN + "/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString()
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: "1hhh6m6lhs126argcqac9h93rc",
+    redirect_uri: "https://www.boxxcel.com/auth/callback.html",
+    code,
+    code_verifier: verifier
   });
 
-  const data = await tokenRes.json();
+  const res = await fetch(tokenEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
 
-  if (!tokenRes.ok) {
-    document.body.innerHTML =
-      "<pre>Token exchange failed.\n\nHTTP " + tokenRes.status + "\n\n" +
-      JSON.stringify(data, null, 2) + "</pre>";
+  if (!res.ok) {
+    document.body.innerText = "Token exchange failed.";
     return;
   }
 
-  // ===== STORE TOKENS =====
-  localStorage.setItem("access_token", data.access_token || "");
-  localStorage.setItem("id_token", data.id_token || "");
-  if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
+  const data = await res.json();
 
-  // Clean up
+  localStorage.setItem("access_token", data.access_token);
+  localStorage.setItem("id_token", data.id_token);
+  if (data.refresh_token) {
+    localStorage.setItem("refresh_token", data.refresh_token);
+  }
+
   sessionStorage.removeItem("pkce_verifier");
 
-  // ===== REDIRECT BACK TO HOME =====
-  window.location.replace(ORIGIN + "/");
+  window.location.replace("/");
 })();
 </script>
 </body>
