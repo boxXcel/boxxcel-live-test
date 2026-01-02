@@ -1,85 +1,91 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>boxXcel — Training Plan</title>
-  <link rel="stylesheet" href="/assets/app.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>boxXcel — Training plan</title>
+  <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body>
-<script src="/auth/guard.js"></script>
+  <script src="/auth/guard.js"></script>
 
-<div class="shell">
-  <div class="topbar" data-topbar></div>
+  <div class="shell">
+    <div class="topbar" data-topbar></div>
 
-  <div class="container">
-    <div data-nav></div>
+    <div class="container">
+      <div data-nav></div>
 
-    <div class="card">
-      <strong>Training Plan (Age 12–15)</strong>
-      <div class="small">
-        Follow each card carefully. Focus on technique and safety over speed or power.
+      <div class="card">
+        <h2>Training plan (Age 12–15)</h2>
+        <div class="small">
+          Training cards load from your data file. Editing the plan is now as simple as editing one JSON file.
+        </div>
+      </div>
+
+      <div id="cards"></div>
+
+      <div class="footer">
+        boxXcel — Training support application. Training and information only.
       </div>
     </div>
-
-    <!-- CARD: Skipping -->
-    <div class="card">
-      <strong>Skipping — Coordination & Warm-up</strong>
-      <div class="small">6 rounds × 30 seconds (30 sec rest)</div>
-
-      <ol class="small">
-        <li>Stand tall, elbows close to ribs.</li>
-        <li>Turn the rope using wrists only.</li>
-        <li>Jump lightly (small jumps only).</li>
-        <li>Round 1–2: two feet.</li>
-        <li>Round 3–4: alternate feet.</li>
-        <li>Round 5–6: best form, relaxed pace.</li>
-      </ol>
-
-      <div class="small">
-        <strong>Safety:</strong> Stop if ankles or shins hurt. Train on a clear, non-slip surface.
-      </div>
-    </div>
-
-    <!-- CARD: Shadowboxing -->
-    <div class="card">
-      <strong>Shadowboxing — Technique</strong>
-      <div class="small">4 rounds × 2 minutes (1 min rest)</div>
-
-      <ol class="small">
-        <li>Hands up, chin down, knees soft.</li>
-        <li>Round 1: movement only.</li>
-        <li>Round 2: jab + movement.</li>
-        <li>Round 3: jab–cross, reset guard.</li>
-        <li>Round 4: add light slip after punches.</li>
-      </ol>
-
-      <div class="small">
-        <strong>Safety:</strong> Keep distance from walls/furniture. Stop if dizzy.
-      </div>
-    </div>
-
-    <!-- CARD: Mobility -->
-    <div class="card">
-      <strong>Mobility & Injury Prevention</strong>
-
-      <ol class="small">
-        <li>Ankle circles × 10 each way.</li>
-        <li>Calf raises × 2 sets of 10.</li>
-        <li>Bodyweight squats × 8.</li>
-        <li>Shoulder circles × 10.</li>
-        <li>Slow breathing × 60 sec.</li>
-      </ol>
-
-      <div class="small">
-        <strong>Safety:</strong> No pain. Move slowly and with control.
-      </div>
-    </div>
-
-    <div class="footer">boxXcel — Training and information only</div>
   </div>
-</div>
 
-<script src="/assets/app.js"></script>
-<script>
-  renderTopbar("boxXcel — Training");
-  renderNav();
+  <script src="/assets/app.js"></script>
+  <script>
+    renderTopbar("boxXcel — Training plan");
+    renderNav();
+
+    const DATA_URL = "/boxer/data/training_cards_12_15.json";
+
+    function esc(s){
+      return String(s ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function list(items){
+      if(!items || !items.length) return "";
+      return "<ul class='small'>" + items.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>";
+    }
+
+    function cardHtml(c){
+      return `
+        <div class="card">
+          <h2>${esc(c.title)}</h2>
+          <div class="small"><strong>Goal:</strong> ${esc(c.goal)}</div>
+          <div class="small"><strong>Time:</strong> ${esc(c.duration)}</div>
+          <div class="small"><strong>Equipment:</strong> ${esc(c.equipment)}</div>
+
+          <div style="height:10px"></div>
+          <div class="small"><strong>Step-by-step</strong></div>
+          ${list(c.steps)}
+
+          <div style="height:10px"></div>
+          <div class="small"><strong>Coaching cues</strong></div>
+          ${list(c.cues)}
+
+          <div style="height:10px"></div>
+          <div class="small"><strong>Safety notice</strong></div>
+          ${list(c.safety)}
+        </div>
+      `;
+    }
+
+    async function load(){
+      const res = await fetch(DATA_URL, { cache: "no-store" });
+      if(!res.ok){
+        document.getElementById("cards").innerHTML =
+          `<div class="card"><div class="small">Could not load training data. Check file path: ${esc(DATA_URL)}</div></div>`;
+        return;
+      }
+      const data = await res.json();
+      document.getElementById("cards").innerHTML = data.map(cardHtml).join("");
+    }
+
+    load();
+  </script>
+</body>
+</html>

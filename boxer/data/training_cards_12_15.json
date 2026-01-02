@@ -1,0 +1,80 @@
+[
+  {
+    "id": "skip-001",
+    "title": "Skipping — Coordination & Warm-up",
+    "duration": "10–12 minutes",
+    "goal": "Raise heart rate, improve timing, prepare ankles/calves safely.",
+    "equipment": "Skipping rope (or air skip)",
+    "steps": [
+      "Set-up (30s): Stand tall, elbows close to ribs, hands slightly forward of hips.",
+      "Practice turns (30s): Turn wrists only, shoulders relaxed.",
+      "Round 1: 30s steady bounce (two-feet). Rest 30s.",
+      "Round 2: 30s steady bounce (two-feet). Rest 30s.",
+      "Round 3: 30s alternating feet (slow). Rest 30s.",
+      "Round 4: 30s alternating feet. Rest 30s.",
+      "Round 5: 30s steady bounce (slightly faster). Rest 30s.",
+      "Round 6: 30s best form (quality first). Rest 30s.",
+      "Cooldown (60s): Walk slowly, shake out calves/ankles."
+    ],
+    "cues": [
+      "Small jumps only (1–2 cm). Land softly.",
+      "Wrists turn the rope, not the arms.",
+      "If you trip repeatedly, slow down and rebuild timing."
+    ],
+    "safety": [
+      "Stop if you feel sharp pain (ankle/knee/shin). Do not push through pain.",
+      "Train on a safe surface (not slippery). Remove hazards from the area.",
+      "Under-18s: train with appropriate supervision; ask a coach if unsure."
+    ]
+  },
+  {
+    "id": "shadow-001",
+    "title": "Shadowboxing — Technique & Footwork",
+    "duration": "12 minutes",
+    "goal": "Clean technique, balance, and breathing — no rushing.",
+    "equipment": "None (clear space)",
+    "steps": [
+      "Stance check (60s): Feet shoulder width, knees soft, hands up, chin tucked.",
+      "Round 1 (2m): Movement only (forward/back/left/right). Rest 1m.",
+      "Round 2 (2m): Jab only + footwork (jab, step out, reset). Rest 1m.",
+      "Round 3 (2m): Jab–cross (1–2). Reset guard after each combo. Rest 1m.",
+      "Round 4 (2m): Add defence: slip after 1–2 (small movement). Rest 1m.",
+      "Finish (60s): Slow movement and breathing. Calm exit."
+    ],
+    "cues": [
+      "Quality over speed. Every punch returns to guard.",
+      "Turn the hips on the cross. Do not overreach.",
+      "Exhale lightly on punches."
+    ],
+    "safety": [
+      "Clear space: no furniture near elbows/hands.",
+      "Stop if dizzy or unwell; sit and inform an adult/coach.",
+      "Do not attempt advanced moves unsupervised."
+    ]
+  },
+  {
+    "id": "mobility-001",
+    "title": "Mobility — Ankles, Hips, Shoulders",
+    "duration": "8–10 minutes",
+    "goal": "Improve movement quality and reduce injury risk.",
+    "equipment": "None",
+    "steps": [
+      "Ankle circles: 10 each direction per foot.",
+      "Calf raise (slow): 2 sets of 10 reps (hold 1s at top).",
+      "Hip openers: 10 reps each side (slow).",
+      "Bodyweight squat: 2 sets of 8 reps (chest up, knees track toes).",
+      "Shoulder circles: 10 forward + 10 backward.",
+      "Scap push-ups: 2 sets of 8 reps (small range).",
+      "Breathing reset: 60s slow nasal breathing."
+    ],
+    "cues": [
+      "Move slowly and controlled.",
+      "No bouncing stretches.",
+      "Focus on good posture."
+    ],
+    "safety": [
+      "No pain. Mild stretch is fine; sharp pain is not.",
+      "If you have an injury, follow coach/medical guidance first."
+    ]
+  }
+]
