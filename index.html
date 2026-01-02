@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>boxXcel</title>
+
+  <style>
+    body{
+      margin:0;
+      background:#ffffff;
+      font-family: Arial, sans-serif;
+      text-align:center;
+    }
+
+    .page{
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      padding: 18px 16px;
+    }
+
+    .logo{
+      width:1800px;
+      max-width:95%;
+      height:auto;
+      display:block;
+      margin-top: 10px;
+      margin-bottom: 18px;
+    }
+
+    .disclaimer{
+      width: 96%;
+      max-width: 1600px;
+      color: #666;
+      font-size: 22px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .disclaimer strong{
+      display:block;
+      color:#555;
+      font-size: 24px;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .actions{
+      margin-top: 22px;
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap: wrap;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid #0b5fff;
+      background:#0b5fff;
+      color:#fff;
+      font-size:18px;
+      font-weight:700;
+      padding:12px 18px;
+      border-radius:10px;
+      cursor:pointer;
+    }
+
+    .btn:active{ transform: translateY(1px); }
+
+    .btn-secondary{
+      background:#fff;
+      color:#0b5fff;
+    }
+
+    .status{
+      margin-top: 14px;
+      font-size: 16px;
+      color: #555;
+    }
+
+    .status .ok{ color:#0a7a2f; font-weight:700; }
+    .status .bad{ color:#b42318; font-weight:700; }
+
+    @media (max-width: 600px){
+      .disclaimer{ font-size: 16px; }
+      .disclaimer strong{ font-size: 18px; }
+      .logo{ margin-bottom: 14px; }
+      .btn{ font-size:16px; padding:11px 16px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <!-- Absolute path prevents /auth/callback/... lookups -->
+    <img class="logo" src="/logo.png" alt="boxXcel Logo" />
+
+    <div class="disclaimer">
+      <strong>Training and Information Only</strong>
+      boxXcel is a training support application for boxing and fitness purposes only.
+      It does not provide medical, health, nutritional, or professional advice.
+      Always consult a qualified professional before beginning or modifying any training programme.
+    </div>
+
+    <div class="actions">
+      <button id="loginBtn" class="btn" onclick="login()">Login</button>
+      <button id="logoutBtn" class="btn btn-secondary" onclick="logout()">Logout</button>
+    </div>
+
+    <div id="status" class="status"></div>
+
+  </div>
+
+  <script>
+    // ====== CONFIG (locked to your working setup) ======
+    const COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
+    const CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
+
+    // Canonical site (your working login)
+    const CANONICAL_ORIGIN = "https://www.boxxcel.com";
+    const REDIRECT_URI = CANONICAL_ORIGIN + "/auth/callback.html";
+    const LOGOUT_URI = CANONICAL_ORIGIN + "/";
+
+    const SCOPES = "openid email profile";
+
+    // Auto logout after inactivity (25 seconds)
+    const IDLE_TIMEOUT_MS = 25 * 1000;
+
+    // ====== HELPERS ======
+    function base64url(uint8) {
+      return btoa(String.fromCharCode(...uint8))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
+    }
+
+    function setStatus(html) {
+      document.getElementById("status").innerHTML = html || "";
+    }
+
+    function decodeJwtPayload(token) {
+      const part = token.split(".")[1];
+      const normalized = part.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "===".slice((normalized.length + 3) % 4);
+      return JSON.parse(atob(padded));
+    }
+
+    function isJwtExpired(token) {
+      try {
+        const payload = decodeJwtPayload(token);
+        return (payload.exp * 1000) <= Date.now();
+      } catch {
+        return true;
+      }
+    }
+
+    function hasValidAccessToken() {
+      const token = localStorage.getItem("access_token");
+      if (!token) return false;
+      if (isJwtExpired(token)) return false;
+      return true;
+    }
+
+    // ====== IDLE LOGOUT (25s) ======
+    let idleTimer = null;
+
+    function resetIdleTimer() {
+      // Only track idle time when logged in
+      if (!hasValidAccessToken()) return;
+
+      if (idleTimer) clearTimeout(idleTimer);
+
+      idleTimer = setTimeout(() => {
+        console.warn("Idle timeout reached. Logging out.");
+        logout();
+      }, IDLE_TIMEOUT_MS);
+    }
+
+    function startIdleTracking() {
+      const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+      events.forEach(evt =>
+        window.addEventListener(evt, resetIdleTimer, { passive: true })
+      );
+      resetIdleTimer();
+    }
+
+    function stopIdleTracking() {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+
+    // ====== UI ======
+    function syncUi() {
+      const authed = hasValidAccessToken();
+      document.getElementById("loginBtn").style.display = authed ? "none" : "inline-block";
+      document.getElementById("logoutBtn").style.display = authed ? "inline-block" : "none";
+
+      if (authed) {
+        let email = "";
+        try {
+          const idt = localStorage.getItem("id_token");
+          if (idt) {
+            const p = decodeJwtPayload(idt);
+            email = p.email ? ` (${p.email})` : "";
+          }
+        } catch {}
+
+        setStatus(`<span class="ok">Logged in</span>${email}`);
+        startIdleTracking();
+      } else {
+        setStatus(`<span class="bad">Not logged in</span>`);
+        stopIdleTracking();
+      }
+    }
+
+    // ====== AUTH ACTIONS ======
+    async function login() {
+      // PKCE verifier stored only for this browser session
+      const verifier = crypto.randomUUID() + crypto.randomUUID();
+      sessionStorage.setItem("pkce_verifier", verifier);
+
+      const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+      const challenge = base64url(new Uint8Array(hash));
+
+      const url =
+        COGNITO_DOMAIN + "/oauth2/authorize" +
+        "?response_type=code" +
+        "&client_id=" + encodeURIComponent(CLIENT_ID) +
+        "&redirect_uri=" + encodeURIComponent(REDIRECT_URI) +
+        "&scope=" + encodeURIComponent(SCOPES) +
+        "&code_challenge=" + encodeURIComponent(challenge) +
+        "&code_challenge_method=S256";
+
+      window.location.href = url;
+    }
+
+    function logout() {
+      stopIdleTracking(); // stop timer immediately
+
+      // Clear local tokens
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("id_token");
+      localStorage.removeItem("refresh_token");
+
+      // End Cognito session too
+      const url =
+        COGNITO_DOMAIN + "/logout" +
+        "?client_id=" + encodeURIComponent(CLIENT_ID) +
+        "&logout_uri=" + encodeURIComponent(LOGOUT_URI);
+
+      window.location.href = url;
+    }
+
+    // ====== OPTIONAL: API wrapper (use later) ======
+    async function apiFetch(url, opts = {}) {
+      const token = localStorage.getItem("access_token");
+      if (!token || isJwtExpired(token)) {
+        throw new Error("Not authenticated (token missing/expired).");
+      }
+
+      const headers = new Headers(opts.headers || {});
+      headers.set("Authorization", `Bearer ${token}`);
+
+      const res = await fetch(url, { ...opts, headers });
+
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("id_token");
+        localStorage.removeItem("refresh_token");
+        syncUi();
+        throw new Error("Session expired. Please log in again.");
+      }
+
+      return res;
+    }
+
+    // ====== BOOT ======
+    (function boot() {
+      // Force canonical www to prevent host mismatch
+      if (location.origin === "https://boxxcel.com") {
+        location.replace(CANONICAL_ORIGIN + location.pathname + location.search + location.hash);
+        return;
+      }
+      syncUi();
+    })();
+  </script>
+</body>
+</html>
