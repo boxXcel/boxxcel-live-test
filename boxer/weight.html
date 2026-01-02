@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>boxXcel — Weight Tracker</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<script src="/auth/guard.js"></script>
+
+<div class="shell">
+  <div class="topbar" data-topbar></div>
+
+  <div class="container">
+    <div data-nav></div>
+
+    <div class="card">
+      <strong>Weight Tracker (Age 12–15)</strong>
+      <div class="small">
+        Enter today’s weight. This prototype stores data on this device only.
+      </div>
+
+      <div style="margin-top:12px">
+        <input id="weight" type="number" step="0.1" placeholder="Weight (kg)"
+          style="padding:10px;border-radius:10px;border:1px solid #ccc;">
+        <button class="btn" onclick="saveWeight()">Save</button>
+      </div>
+
+      <div id="log" class="small" style="margin-top:12px"></div>
+
+      <div class="small">
+        <strong>Safety:</strong> Under-18s must not cut weight without supervision.
+      </div>
+    </div>
+
+    <div class="footer">boxXcel — Training support only</div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  renderTopbar("boxXcel — Weight");
+  renderNav();
+
+  const KEY = "boxxcel_weights";
+
+  function saveWeight(){
+    const v = parseFloat(document.getElementById("weight").value);
+    if(!v || v <= 0) return;
+
+    const rows = JSON.parse(localStorage.getItem(KEY) || "[]");
+    rows.push({ date:new Date().toISOString().slice(0,10), kg:v });
+    localStorage.setItem(KEY, JSON.stringify(rows));
+    render();
+  }
+
+  function render(){
+    const rows = JSON.parse(localStorage.getItem(KEY) || "[]");
+    document.getElementById("log").innerHTML =
+      rows.map(r => `${r.date} — ${r.kg} kg`).join("<br>") || "No entries yet.";
+  }
+
+  render();
+</script>
+</body>
+</html>

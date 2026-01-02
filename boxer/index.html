@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>boxXcel — Dashboard</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<script src="/auth/guard.js"></script>
+
+<div class="shell">
+  <div class="topbar" data-topbar></div>
+
+  <div class="container">
+    <div data-nav></div>
+
+    <div class="tile-grid">
+      <div class="tile">
+        <strong>Today’s Session</strong>
+        <div class="small">Ready to train</div>
+      </div>
+      <div class="tile">
+        <strong>Weekly Completion</strong>
+        <div class="small">0%</div>
+      </div>
+      <div class="tile">
+        <strong>Latest Weight</strong>
+        <div class="small">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <strong>Safety Reminder</strong>
+      <div class="small">
+        Training and information only. Stop if unwell or in pain.
+      </div>
+    </div>
+
+    <div class="footer">boxXcel — Training support only</div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  renderTopbar("boxXcel — Boxer");
+  renderNav();
+</script>
+</body>
+</html>
