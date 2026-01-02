@@ -109,9 +109,10 @@
     </div>
 
     <div class="actions">
-      <button id="loginBtn" class="btn" onclick="login()">Login</button>
-      <button id="logoutBtn" class="btn btn-secondary" onclick="logout()">Logout</button>
-    </div>
+  <button id="loginBtn" class="btn" onclick="login()">Login</button>
+  <button id="enterBtn" class="btn" onclick="window.location.href='/boxer/index.html'">Enter Boxer App</button>
+  <button id="logoutBtn" class="btn btn-secondary" onclick="logout()">Logout</button>
+</div>
 
     <div id="status" class="status"></div>
 
@@ -200,6 +201,7 @@ const LOGOUT_URI = CANONICAL_ORIGIN + "/";
       const authed = hasValidAccessToken();
       document.getElementById("loginBtn").style.display = authed ? "none" : "inline-block";
       document.getElementById("logoutBtn").style.display = authed ? "inline-block" : "none";
+document.getElementById("enterBtn").style.display = authed ? "inline-block" : "none";
 
       if (authed) {
         let email = "";
