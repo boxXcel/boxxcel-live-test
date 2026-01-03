@@ -7,179 +7,194 @@
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body>
-  <script src="/auth/guard.js"></script>
+<script src="/auth/guard.js"></script>
 
-  <div class="shell">
-    <div class="topbar" data-topbar></div>
+<div class="shell">
+  <div class="topbar" data-topbar></div>
 
-    <div class="container">
-      <div data-nav></div>
+  <div class="container">
+    <div data-nav></div>
 
-      <div class="card">
-        <h2>Training plan (Age 12–15)</h2>
-        <div class="small">
-          Training cards load from your data file. Editing the plan is now as simple as editing one JSON file.
-        </div>
-      </div>
+    <div class="card">
+      <h2 id="dayTitle">Training plan (Age 12–15)</h2>
+      <div class="small" id="dayMeta">Loading today’s plan…</div>
+    </div>
 
-      <div id="cards"></div>
+    <div id="cards"></div>
 
-      <div class="footer">
-        boxXcel — Training support application. Training and information only.
-      </div>
+    <div class="footer">
+      boxXcel — Training support application. Training and information only.
     </div>
   </div>
+</div>
 
-  <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>boxXcel — Training plan</title>
-  <link rel="stylesheet" href="/assets/app.css" />
-</head>
-<body>
-  <script src="/auth/guard.js"></script>
+<script src="/assets/app.js"></script>
+<script>
+  renderTopbar("boxXcel — Training plan");
+  renderNav();
 
-  <div class="shell">
-    <div class="topbar" data-topbar></div>
+  const SETTINGS_KEY = "boxxcel_settings_v1";
+  const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
-    <div class="container">
-      <div data-nav></div>
+  const CARDS_URL = "/boxer/data/training_cards_12_15.json";
+  const PLAN_URL  = "/boxer/data/plan_12_15_week1.json";
 
+  function esc(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function todayISO(){
+    const d = new Date();
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0,10);
+  }
+
+  function loadSettings(){
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function loadCompletions(){
+    try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function saveCompletions(obj){
+    localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj));
+  }
+
+  function daysBetween(startISO, endISO){
+    const s = new Date(startISO + "T00:00:00");
+    const e = new Date(endISO + "T00:00:00");
+    return Math.floor((e - s) / (24*60*60*1000));
+  }
+
+  function getProgrammeDayNumber(){
+    const s = loadSettings();
+    if (!s.startDate) return 1;
+    return Math.max(1, daysBetween(s.startDate, todayISO()) + 1);
+  }
+
+  function getWeekAndDay(dayNumber){
+    return {
+      week: Math.floor((dayNumber - 1) / 7) + 1,
+      dayInWeek: ((dayNumber - 1) % 7) + 1
+    };
+  }
+
+  function getCompletedSetFor(date){
+    const all = loadCompletions();
+    const d = all[date] || { cards: [] };
+    return new Set(d.cards || []);
+  }
+
+  function setCardComplete(date, id, done){
+    const all = loadCompletions();
+    const d = all[date] || { cards: [], required: [] };
+    const set = new Set(d.cards || []);
+    done ? set.add(id) : set.delete(id);
+    all[date] = { ...d, cards: [...set] };
+    saveCompletions(all);
+  }
+
+  function setRequired(date, ids){
+    const all = loadCompletions();
+    const d = all[date] || { cards: [] };
+    all[date] = { ...d, required: ids };
+    saveCompletions(all);
+  }
+
+  function list(arr){
+    return `<ul class="small">${arr.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
+  }
+
+  function cardHtml(c, done){
+    return `
       <div class="card">
-        <h2>Training plan (Age 12–15)</h2>
-        <div class="small">
-          Mark cards complete as you finish them. This prototype saves on this device only.
-        </div>
+        <h2>${esc(c.title)}</h2>
+        <div class="small"><strong>Goal:</strong> ${esc(c.goal)}</div>
+        <div class="small"><strong>Time:</strong> ${esc(c.duration)}</div>
+        <div class="small"><strong>Equipment:</strong> ${esc(c.equipment)}</div>
+
+        <div class="small"><strong>Steps</strong></div>
+        ${list(c.steps)}
+
+        <div class="small"><strong>Safety</strong></div>
+        ${list(c.safety)}
+
+        <button class="btn ${done ? "" : "secondary"}"
+          data-id="${esc(c.id)}">
+          ${done ? "Completed ✓" : "Mark complete"}
+        </button>
       </div>
+    `;
+  }
 
-      <div id="cards"></div>
+  async function load(){
+    const date = todayISO();
+    const dayNum = getProgrammeDayNumber();
+    const { week, dayInWeek } = getWeekAndDay(dayNum);
 
-      <div class="footer">
-        boxXcel — Training support application. Training and information only.
-      </div>
-    </div>
-  </div>
+    const [cardsRes, planRes] = await Promise.all([
+      fetch(CARDS_URL, { cache:"no-store" }),
+      fetch(PLAN_URL,  { cache:"no-store" })
+    ]);
 
-  <script src="/assets/app.js"></script>
-  <script>
-    renderTopbar("boxXcel — Training plan");
-    renderNav();
+    const cards = await cardsRes.json();
+    const plan = await planRes.json();
+    const dayPlan = plan.days.find(d => d.day === dayInWeek);
 
-    const DATA_URL = "/boxer/data/training_cards_12_15.json";
-    const COMPLETIONS_KEY = "boxxcel_completions_v1";
+    document.getElementById("dayTitle").textContent =
+      `Week ${week} — Day ${dayInWeek}: ${dayPlan.name}`;
 
-    function todayISO(){
-      const d = new Date();
-      const off = d.getTimezoneOffset();
-      const local = new Date(d.getTime() - off * 60 * 1000);
-      return local.toISOString().slice(0,10);
-    }
+    const settings = loadSettings();
+    const freq = settings.frequency === 6 ? 6 : 5;
 
-    function esc(s){
-      return String(s ?? "")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    function list(items){
-      if(!items || !items.length) return "";
-      return "<ul class='small'>" + items.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>";
-    }
-
-    function loadCompletions(){
-      try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
-      catch { return {}; }
-    }
-
-    function saveCompletions(obj){
-      localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj));
-    }
-
-    function getCompletedSetFor(date){
-      const all = loadCompletions();
-      const day = all[date] || { cards: [] };
-      return new Set(day.cards || []);
-    }
-
-    function setCardComplete(date, cardId, isDone){
-      const all = loadCompletions();
-      const day = all[date] || { cards: [] };
-      const set = new Set(day.cards || []);
-
-      if (isDone) set.add(cardId);
-      else set.delete(cardId);
-
-      all[date] = { cards: Array.from(set) };
-      saveCompletions(all);
-    }
-
-    function cardHtml(c, date, completedSet){
-      const done = completedSet.has(c.id);
-      const btnText = done ? "Completed ✓" : "Mark complete";
-      const btnClass = done ? "btn" : "btn secondary";
-
-      return `
-        <div class="card" data-card="${esc(c.id)}">
-          <h2>${esc(c.title)}</h2>
-          <div class="small"><strong>Goal:</strong> ${esc(c.goal)}</div>
-          <div class="small"><strong>Time:</strong> ${esc(c.duration)}</div>
-          <div class="small"><strong>Equipment:</strong> ${esc(c.equipment)}</div>
-
-          <div style="height:10px"></div>
-          <div class="small"><strong>Step-by-step</strong></div>
-          ${list(c.steps)}
-
-          <div style="height:10px"></div>
-          <div class="small"><strong>Coaching cues</strong></div>
-          ${list(c.cues)}
-
-          <div style="height:10px"></div>
-          <div class="small"><strong>Safety notice</strong></div>
-          ${list(c.safety)}
-
-          <div style="height:12px"></div>
-          <button type="button" class="${btnClass}" data-toggle="${esc(c.id)}">${btnText}</button>
-        </div>
-      `;
-    }
-
-    async function load(){
-      const date = todayISO();
-      const res = await fetch(DATA_URL, { cache: "no-store" });
-      if(!res.ok){
-        document.getElementById("cards").innerHTML =
-          `<div class="card"><div class="small">Could not load training data. Check: ${esc(DATA_URL)}</div></div>`;
-        return;
-      }
-
-      const data = await res.json();
-      const completedSet = getCompletedSetFor(date);
-
+    if (dayPlan.type === "rest"){
+      document.getElementById("dayMeta").textContent = "Rest day";
+      setRequired(date, []);
       document.getElementById("cards").innerHTML =
-        data.map(c => cardHtml(c, date, completedSet)).join("");
-
-      // Wire up buttons
-      document.querySelectorAll("[data-toggle]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-toggle");
-          const currentlyDone = btn.textContent.includes("Completed");
-          const newDone = !currentlyDone;
-
-          setCardComplete(date, id, newDone);
-
-          // Update button UI immediately
-          btn.textContent = newDone ? "Completed ✓" : "Mark complete";
-          btn.className = newDone ? "btn" : "btn secondary";
-        });
-      });
+        `<div class="card"><div class="small">Recovery day. No training required.</div></div>`;
+      return;
     }
 
-    load();
-  </script>
+    const required =
+      (dayInWeek === 6 && dayPlan.type === "optional" && freq === 5)
+        ? []
+        : dayPlan.card_ids;
+
+    setRequired(date, required);
+
+    document.getElementById("dayMeta").textContent =
+      required.length
+        ? "Complete all cards to finish today"
+        : "Optional recovery day";
+
+    const map = Object.fromEntries(cards.map(c=>[c.id,c]));
+    const done = getCompletedSetFor(date);
+
+    document.getElementById("cards").innerHTML =
+      dayPlan.card_ids.map(id =>
+        cardHtml(map[id], done.has(id))
+      ).join("");
+
+    document.querySelectorAll("[data-id]").forEach(b=>{
+      b.onclick = ()=>{
+        const id = b.dataset.id;
+        const nowDone = !b.textContent.includes("Completed");
+        setCardComplete(date, id, nowDone);
+        load();
+      };
+    });
+  }
+
+  load();
+</script>
 </body>
 </html>
