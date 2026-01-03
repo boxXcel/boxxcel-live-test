@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>boxXcel — Dashboard</title>
@@ -14,36 +14,44 @@
   <div class="container">
     <div data-nav></div>
 
+    <!-- Training frequency -->
     <div class="card">
       <strong>Training frequency</strong>
-      <div class="small">Default is 5 days/week. Switch to 6 if the boxer already trains regularly.</div>
+      <div class="small">
+        Default is 5 days/week. Switch to 6 only if the boxer already trains regularly.
+      </div>
+
       <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <select id="freq" style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+        <select id="freq"
+          style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
           <option value="5">Standard — 5 training days/week</option>
           <option value="6">Advanced — 6 training days/week</option>
         </select>
+
         <button class="btn" id="saveFreq" type="button">Save</button>
         <span class="small" id="freqSaved"></span>
       </div>
     </div>
 
+    <!-- Programme start date -->
     <div class="card">
-  <strong>Programme start date</strong>
-  <div class="small">
-    Used to automatically select the correct training day.
-  </div>
+      <strong>Programme start date</strong>
+      <div class="small">
+        Used to automatically select the correct training day.
+      </div>
 
-  <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-    <input
-      id="startDate"
-      type="date"
-      style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;"
-    >
-    <button class="btn" id="saveStart" type="button">Save</button>
-    <span class="small" id="startSaved"></span>
-  </div>
-</div>
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input
+          id="startDate"
+          type="date"
+          style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;"
+        >
+        <button class="btn" id="saveStart" type="button">Save</button>
+        <span class="small" id="startSaved"></span>
+      </div>
+    </div>
 
+    <!-- Status tiles -->
     <div class="tile-grid">
       <div class="tile">
         <strong>Today’s Session</strong>
@@ -61,10 +69,12 @@
       </div>
     </div>
 
+    <!-- Safety -->
     <div class="card">
       <strong>Safety Reminder</strong>
       <div class="small">
-        Training and information only. Stop if unwell, dizzy, or in pain. Under-18s should train with appropriate supervision.
+        Training and information only. Stop if unwell, dizzy, or in pain.
+        Under-18s should train with appropriate supervision.
       </div>
     </div>
 
@@ -77,19 +87,14 @@
   renderTopbar("boxXcel — Boxer");
   renderNav();
 
-  const COMPLETIONS_KEY = "boxxcel_completions_v1";
   const SETTINGS_KEY = "boxxcel_settings_v1";
+  const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
   function todayISO(){
     const d = new Date();
     const off = d.getTimezoneOffset();
-    const local = new Date(d.getTime() - off * 60 * 1000);
+    const local = new Date(d.getTime() - off * 60000);
     return local.toISOString().slice(0,10);
-  }
-
-  function loadCompletions(){
-    try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
-    catch { return {}; }
   }
 
   function loadSettings(){
@@ -101,25 +106,14 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
 
-  function getFrequency(){
-    const s = loadSettings();
-    const f = Number(s.frequency);
-    return (f === 6) ? 6 : 5;
-  }
-
-  function setFrequency(f){
-    const s = loadSettings();
-    s.frequency = f;
-    saveSettings(s);
+  function loadCompletions(){
+    try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
+    catch { return {}; }
   }
 
   function isDayComplete(date){
     const all = loadCompletions();
-    const day = all[date];
-    if (!day || !Array.isArray(day.cards)) return false;
-    // For now: treat “day complete” as “at least one card completed”
-    // Next refinement: require ALL cards (once daily plans are structured)
-    return day.cards.length > 0;
+    return all[date] && Array.isArray(all[date].cards) && all[date].cards.length > 0;
   }
 
   function datesLast7(){
@@ -129,40 +123,62 @@
       const d = new Date(now);
       d.setDate(now.getDate() - i);
       const off = d.getTimezoneOffset();
-      const local = new Date(d.getTime() - off * 60 * 1000);
+      const local = new Date(d.getTime() - off * 60000);
       out.push(local.toISOString().slice(0,10));
     }
     return out;
   }
 
   function renderStats(){
-    const freq = getFrequency();
+    const settings = loadSettings();
+
+    // Frequency
+    const freq = settings.frequency === 6 ? 6 : 5;
     document.getElementById("freq").value = String(freq);
+
+    // Start date
+    if (settings.startDate) {
+      document.getElementById("startDate").value = settings.startDate;
+    }
 
     // Today
     const t = todayISO();
     document.getElementById("todayStatus").textContent =
       isDayComplete(t) ? "Completed ✓" : "Not completed";
 
-    // Weekly (last 7 days)
+    // Weekly
     const last7 = datesLast7();
     const completedDays = last7.filter(isDayComplete).length;
+    const pct = Math.round((completedDays / freq) * 100);
 
-    // Target is frequency (5 or 6)
-    const target = freq;
-
-    const pct = Math.round((completedDays / target) * 100);
     document.getElementById("weeklyStatus").textContent =
-      `${completedDays}/${target} days (${isFinite(pct) ? pct : 0}%)`;
+      `${completedDays}/${freq} days (${isFinite(pct) ? pct : 0}%)`;
   }
 
-  document.getElementById("saveFreq").addEventListener("click", () => {
-    const f = Number(document.getElementById("freq").value);
-    setFrequency(f === 6 ? 6 : 5);
+  // Save frequency
+  document.getElementById("saveFreq").onclick = () => {
+    const s = loadSettings();
+    s.frequency = Number(document.getElementById("freq").value) === 6 ? 6 : 5;
+    saveSettings(s);
+
     document.getElementById("freqSaved").textContent = "Saved ✓";
-    setTimeout(() => (document.getElementById("freqSaved").textContent = ""), 1500);
+    setTimeout(() => document.getElementById("freqSaved").textContent = "", 1500);
     renderStats();
-  });
+  };
+
+  // Save programme start date (ONLY when button clicked)
+  document.getElementById("saveStart").onclick = () => {
+    const val = document.getElementById("startDate").value;
+    if (!val) return;
+
+    const s = loadSettings();
+    s.startDate = val;
+    saveSettings(s);
+
+    document.getElementById("startSaved").textContent = "Saved ✓";
+    setTimeout(() => document.getElementById("startSaved").textContent = "", 1500);
+    renderStats();
+  };
 
   renderStats();
 </script>
