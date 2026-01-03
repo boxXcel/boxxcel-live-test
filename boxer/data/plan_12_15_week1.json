@@ -11,29 +11,29 @@
       "day": 2,
       "name": "Footwork + Core",
       "type": "training",
-      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+      "card_ids": ["skip-001", "footwork-001", "core-001", "mobility-001"]
     },
     {
       "day": 3,
-      "name": "Recovery Skills — Light technique",
+      "name": "Light Technique & Recovery",
       "type": "training",
       "card_ids": ["shadow-001", "mobility-001"]
     },
     {
       "day": 4,
-      "name": "Foundation — Quality rounds",
+      "name": "Technique + Conditioning",
       "type": "training",
-      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+      "card_ids": ["skip-001", "shadow-001", "conditioning-001", "mobility-001"]
     },
     {
       "day": 5,
-      "name": "Conditioning starter",
+      "name": "Conditioning + Core",
       "type": "training",
-      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+      "card_ids": ["conditioning-001", "core-001", "mobility-001"]
     },
     {
       "day": 6,
-      "name": "Active recovery / optional training day",
+      "name": "Optional Light Session",
       "type": "optional",
       "card_ids": ["mobility-001"]
     },

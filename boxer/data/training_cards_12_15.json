@@ -77,4 +77,78 @@
       "If you have an injury, follow coach/medical guidance first."
     ]
   }
+ ,
+{
+  "id": "core-001",
+  "title": "Core Stability — Foundation",
+  "duration": "8–10 minutes",
+  "goal": "Build trunk stability to support balance, punching and injury prevention.",
+  "equipment": "Exercise mat (optional)",
+  "steps": [
+    "Front plank: 3 x 20 seconds (rest 20s between).",
+    "Side plank (left): 2 x 15 seconds.",
+    "Side plank (right): 2 x 15 seconds.",
+    "Dead bug: 2 x 6 slow reps per side.",
+    "Standing brace: 3 x 5 breaths (hands on ribs, brace gently)."
+  ],
+  "cues": [
+    "Quality first — stop if form breaks.",
+    "Neutral spine, no sagging hips.",
+    "Breathe normally, do not hold breath."
+  ],
+  "safety": [
+    "No pain in lower back or neck.",
+    "Stop if shaking excessively or losing form.",
+    "Under-18s should avoid weighted core work."
+  ]
+},
+{
+  "id": "conditioning-001",
+  "title": "Conditioning — Boxing Intervals (Beginner)",
+  "duration": "10–12 minutes",
+  "goal": "Develop aerobic fitness and basic boxing conditioning safely.",
+  "equipment": "Timer (phone is fine)",
+  "steps": [
+    "Warm-up: 2 minutes light movement.",
+    "Round 1: 30s shadowboxing, 60s walk.",
+    "Round 2: 30s shadowboxing, 60s walk.",
+    "Round 3: 30s shadowboxing, 60s walk.",
+    "Round 4: 30s shadowboxing, 60s walk.",
+    "Cool-down: 2 minutes slow walk and breathing."
+  ],
+  "cues": [
+    "Stay relaxed; this is not a sprint.",
+    "Hands return to guard after every punch.",
+    "Breathe through the nose if possible."
+  ],
+  "safety": [
+    "Stop immediately if dizzy or nauseous.",
+    "Hydrate before and after training.",
+    "Do not push intensity beyond control."
+  ]
+},
+{
+  "id": "footwork-001",
+  "title": "Footwork — Balance & Movement",
+  "duration": "8–10 minutes",
+  "goal": "Improve balance, stance control and efficient movement.",
+  "equipment": "Clear floor space",
+  "steps": [
+    "Stance check: 60 seconds.",
+    "Forward step + reset: 2 x 10 reps.",
+    "Backward step + reset: 2 x 10 reps.",
+    "Left/right step: 2 x 10 reps each direction.",
+    "Box step drill: 2 x 60 seconds."
+  ],
+  "cues": [
+    "Small steps — stay balanced.",
+    "Feet move first, hands stay up.",
+    "Do not cross feet."
+  ],
+  "safety": [
+    "Train on non-slip surface.",
+    "Stop if ankles feel unstable.",
+    "Clear space of obstacles."
+  ]
+}
 ]
