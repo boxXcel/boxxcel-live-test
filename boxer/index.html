@@ -14,25 +14,40 @@
   <div class="container">
     <div data-nav></div>
 
+    <div class="card">
+      <strong>Training frequency</strong>
+      <div class="small">Default is 5 days/week. Switch to 6 if the boxer already trains regularly.</div>
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <select id="freq" style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <option value="5">Standard — 5 training days/week</option>
+          <option value="6">Advanced — 6 training days/week</option>
+        </select>
+        <button class="btn" id="saveFreq" type="button">Save</button>
+        <span class="small" id="freqSaved"></span>
+      </div>
+    </div>
+
     <div class="tile-grid">
       <div class="tile">
         <strong>Today’s Session</strong>
-        <div class="small">Ready to train</div>
+        <div class="small" id="todayStatus">—</div>
       </div>
+
       <div class="tile">
         <strong>Weekly Completion</strong>
-        <div class="small">0%</div>
+        <div class="small" id="weeklyStatus">—</div>
       </div>
+
       <div class="tile">
         <strong>Latest Weight</strong>
-        <div class="small">—</div>
+        <div class="small">See Weight page</div>
       </div>
     </div>
 
     <div class="card">
       <strong>Safety Reminder</strong>
       <div class="small">
-        Training and information only. Stop if unwell or in pain.
+        Training and information only. Stop if unwell, dizzy, or in pain. Under-18s should train with appropriate supervision.
       </div>
     </div>
 
@@ -44,6 +59,95 @@
 <script>
   renderTopbar("boxXcel — Boxer");
   renderNav();
+
+  const COMPLETIONS_KEY = "boxxcel_completions_v1";
+  const SETTINGS_KEY = "boxxcel_settings_v1";
+
+  function todayISO(){
+    const d = new Date();
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60 * 1000);
+    return local.toISOString().slice(0,10);
+  }
+
+  function loadCompletions(){
+    try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function loadSettings(){
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function saveSettings(s){
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  }
+
+  function getFrequency(){
+    const s = loadSettings();
+    const f = Number(s.frequency);
+    return (f === 6) ? 6 : 5;
+  }
+
+  function setFrequency(f){
+    const s = loadSettings();
+    s.frequency = f;
+    saveSettings(s);
+  }
+
+  function isDayComplete(date){
+    const all = loadCompletions();
+    const day = all[date];
+    if (!day || !Array.isArray(day.cards)) return false;
+    // For now: treat “day complete” as “at least one card completed”
+    // Next refinement: require ALL cards (once daily plans are structured)
+    return day.cards.length > 0;
+  }
+
+  function datesLast7(){
+    const out = [];
+    const now = new Date();
+    for(let i=0;i<7;i++){
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off * 60 * 1000);
+      out.push(local.toISOString().slice(0,10));
+    }
+    return out;
+  }
+
+  function renderStats(){
+    const freq = getFrequency();
+    document.getElementById("freq").value = String(freq);
+
+    // Today
+    const t = todayISO();
+    document.getElementById("todayStatus").textContent =
+      isDayComplete(t) ? "Completed ✓" : "Not completed";
+
+    // Weekly (last 7 days)
+    const last7 = datesLast7();
+    const completedDays = last7.filter(isDayComplete).length;
+
+    // Target is frequency (5 or 6)
+    const target = freq;
+
+    const pct = Math.round((completedDays / target) * 100);
+    document.getElementById("weeklyStatus").textContent =
+      `${completedDays}/${target} days (${isFinite(pct) ? pct : 0}%)`;
+  }
+
+  document.getElementById("saveFreq").addEventListener("click", () => {
+    const f = Number(document.getElementById("freq").value);
+    setFrequency(f === 6 ? 6 : 5);
+    document.getElementById("freqSaved").textContent = "Saved ✓";
+    setTimeout(() => (document.getElementById("freqSaved").textContent = ""), 1500);
+    renderStats();
+  });
+
+  renderStats();
 </script>
 </body>
 </html>

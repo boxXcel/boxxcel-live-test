@@ -30,12 +30,52 @@
     </div>
   </div>
 
+  <!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>boxXcel — Training plan</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  <script src="/auth/guard.js"></script>
+
+  <div class="shell">
+    <div class="topbar" data-topbar></div>
+
+    <div class="container">
+      <div data-nav></div>
+
+      <div class="card">
+        <h2>Training plan (Age 12–15)</h2>
+        <div class="small">
+          Mark cards complete as you finish them. This prototype saves on this device only.
+        </div>
+      </div>
+
+      <div id="cards"></div>
+
+      <div class="footer">
+        boxXcel — Training support application. Training and information only.
+      </div>
+    </div>
+  </div>
+
   <script src="/assets/app.js"></script>
   <script>
     renderTopbar("boxXcel — Training plan");
     renderNav();
 
     const DATA_URL = "/boxer/data/training_cards_12_15.json";
+    const COMPLETIONS_KEY = "boxxcel_completions_v1";
+
+    function todayISO(){
+      const d = new Date();
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off * 60 * 1000);
+      return local.toISOString().slice(0,10);
+    }
 
     function esc(s){
       return String(s ?? "")
@@ -51,9 +91,40 @@
       return "<ul class='small'>" + items.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>";
     }
 
-    function cardHtml(c){
+    function loadCompletions(){
+      try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
+      catch { return {}; }
+    }
+
+    function saveCompletions(obj){
+      localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj));
+    }
+
+    function getCompletedSetFor(date){
+      const all = loadCompletions();
+      const day = all[date] || { cards: [] };
+      return new Set(day.cards || []);
+    }
+
+    function setCardComplete(date, cardId, isDone){
+      const all = loadCompletions();
+      const day = all[date] || { cards: [] };
+      const set = new Set(day.cards || []);
+
+      if (isDone) set.add(cardId);
+      else set.delete(cardId);
+
+      all[date] = { cards: Array.from(set) };
+      saveCompletions(all);
+    }
+
+    function cardHtml(c, date, completedSet){
+      const done = completedSet.has(c.id);
+      const btnText = done ? "Completed ✓" : "Mark complete";
+      const btnClass = done ? "btn" : "btn secondary";
+
       return `
-        <div class="card">
+        <div class="card" data-card="${esc(c.id)}">
           <h2>${esc(c.title)}</h2>
           <div class="small"><strong>Goal:</strong> ${esc(c.goal)}</div>
           <div class="small"><strong>Time:</strong> ${esc(c.duration)}</div>
@@ -70,19 +141,42 @@
           <div style="height:10px"></div>
           <div class="small"><strong>Safety notice</strong></div>
           ${list(c.safety)}
+
+          <div style="height:12px"></div>
+          <button type="button" class="${btnClass}" data-toggle="${esc(c.id)}">${btnText}</button>
         </div>
       `;
     }
 
     async function load(){
+      const date = todayISO();
       const res = await fetch(DATA_URL, { cache: "no-store" });
       if(!res.ok){
         document.getElementById("cards").innerHTML =
-          `<div class="card"><div class="small">Could not load training data. Check file path: ${esc(DATA_URL)}</div></div>`;
+          `<div class="card"><div class="small">Could not load training data. Check: ${esc(DATA_URL)}</div></div>`;
         return;
       }
+
       const data = await res.json();
-      document.getElementById("cards").innerHTML = data.map(cardHtml).join("");
+      const completedSet = getCompletedSetFor(date);
+
+      document.getElementById("cards").innerHTML =
+        data.map(c => cardHtml(c, date, completedSet)).join("");
+
+      // Wire up buttons
+      document.querySelectorAll("[data-toggle]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-toggle");
+          const currentlyDone = btn.textContent.includes("Completed");
+          const newDone = !currentlyDone;
+
+          setCardComplete(date, id, newDone);
+
+          // Update button UI immediately
+          btn.textContent = newDone ? "Completed ✓" : "Mark complete";
+          btn.className = newDone ? "btn" : "btn secondary";
+        });
+      });
     }
 
     load();
