@@ -1,0 +1,47 @@
+{
+  "week": 1,
+  "days": [
+    {
+      "day": 1,
+      "name": "Foundation — Warm-up + Technique",
+      "type": "training",
+      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+    },
+    {
+      "day": 2,
+      "name": "Footwork + Core",
+      "type": "training",
+      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+    },
+    {
+      "day": 3,
+      "name": "Recovery Skills — Light technique",
+      "type": "training",
+      "card_ids": ["shadow-001", "mobility-001"]
+    },
+    {
+      "day": 4,
+      "name": "Foundation — Quality rounds",
+      "type": "training",
+      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+    },
+    {
+      "day": 5,
+      "name": "Conditioning starter",
+      "type": "training",
+      "card_ids": ["skip-001", "shadow-001", "mobility-001"]
+    },
+    {
+      "day": 6,
+      "name": "Active recovery / optional training day",
+      "type": "optional",
+      "card_ids": ["mobility-001"]
+    },
+    {
+      "day": 7,
+      "name": "Rest day",
+      "type": "rest",
+      "card_ids": []
+    }
+  ]
+}
