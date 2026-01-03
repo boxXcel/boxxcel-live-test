@@ -111,9 +111,17 @@
     catch { return {}; }
   }
 
+  /* Day is complete ONLY if all required card IDs are completed */
   function isDayComplete(date){
     const all = loadCompletions();
-    return all[date] && Array.isArray(all[date].cards) && all[date].cards.length > 0;
+    const d = all[date];
+    if (!d) return false;
+
+    const required = Array.isArray(d.required) ? d.required : [];
+    const done = Array.isArray(d.cards) ? d.cards : [];
+
+    if (required.length === 0) return false; // rest/optional days don’t count
+    return required.every(id => done.includes(id));
   }
 
   function datesLast7(){
@@ -130,23 +138,19 @@
   }
 
   function renderStats(){
-    const settings = loadSettings();
+    const s = loadSettings();
 
-    // Frequency
-    const freq = settings.frequency === 6 ? 6 : 5;
+    const freq = s.frequency === 6 ? 6 : 5;
     document.getElementById("freq").value = String(freq);
 
-    // Start date
-    if (settings.startDate) {
-      document.getElementById("startDate").value = settings.startDate;
+    if (s.startDate){
+      document.getElementById("startDate").value = s.startDate;
     }
 
-    // Today
-    const t = todayISO();
+    const today = todayISO();
     document.getElementById("todayStatus").textContent =
-      isDayComplete(t) ? "Completed ✓" : "Not completed";
+      isDayComplete(today) ? "Completed ✓" : "Not completed";
 
-    // Weekly
     const last7 = datesLast7();
     const completedDays = last7.filter(isDayComplete).length;
     const pct = Math.round((completedDays / freq) * 100);
@@ -155,26 +159,21 @@
       `${completedDays}/${freq} days (${isFinite(pct) ? pct : 0}%)`;
   }
 
-  // Save frequency
   document.getElementById("saveFreq").onclick = () => {
     const s = loadSettings();
     s.frequency = Number(document.getElementById("freq").value) === 6 ? 6 : 5;
     saveSettings(s);
-
     document.getElementById("freqSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("freqSaved").textContent = "", 1500);
     renderStats();
   };
 
-  // Save programme start date (ONLY when button clicked)
   document.getElementById("saveStart").onclick = () => {
     const val = document.getElementById("startDate").value;
     if (!val) return;
-
     const s = loadSettings();
     s.startDate = val;
     saveSettings(s);
-
     document.getElementById("startSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("startSaved").textContent = "", 1500);
     renderStats();
