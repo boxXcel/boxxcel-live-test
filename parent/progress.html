@@ -27,9 +27,45 @@
 </div>
 
 <script src="/assets/app.js"></script>
+
 <script>
   renderTopbar("boxXcel — Parent Progress");
   renderNav();
+
+  const API_BASE = "https://0v4tvwe514.execute-api.eu-west-2.amazonaws.com/prod";
+
+  async function loadParentProgress() {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      console.error("No access token found");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/parent/progress`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        console.error("API error:", res.status);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("Parent progress data:", data);
+
+      // later we will render this to the page
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    }
+  }
+
+  loadParentProgress();
 </script>
+
 </body>
 </html>
