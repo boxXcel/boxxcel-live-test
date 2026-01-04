@@ -69,6 +69,13 @@
       </div>
     </div>
 
+    <!-- NEW: Today’s Focus -->
+    <div class="card">
+      <strong>Today’s Focus</strong>
+      <div class="small" id="todayFocusMeta">Loading…</div>
+      <div id="todayFocusList" style="margin-top:10px;"></div>
+    </div>
+
     <!-- Safety -->
     <div class="card">
       <strong>Safety Reminder</strong>
@@ -89,6 +96,8 @@
 
   const SETTINGS_KEY = "boxxcel_settings_v1";
   const COMPLETIONS_KEY = "boxxcel_completions_v1";
+
+  const CARDS_URL = "/boxer/data/training_cards_12_15.json";
 
   function todayISO(){
     const d = new Date();
@@ -139,6 +148,15 @@
     return "/boxer/data/plan_12_15_week1.json";
   }
 
+  function esc(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
   // Ensure today's "required" cards are set even if user doesn't open Training
   async function ensureTodayRequiredIsSet(){
     const settings = loadSettings();
@@ -157,7 +175,6 @@
 
     const date = todayISO();
 
-    // Compute required list using same rules as training.html
     const required =
       (dayInWeek === 6 && dayPlan.type === "optional" && freq === 5)
         ? []
@@ -194,6 +211,79 @@
     return out;
   }
 
+  function renderFocusList(items){
+    const holder = document.getElementById("todayFocusList");
+    if (!items || items.length === 0){
+      holder.innerHTML = "";
+      return;
+    }
+    holder.innerHTML = `
+      <ul class="small" style="margin:0; padding-left: 18px;">
+        ${items.map(t => `<li>${esc(t)}</li>`).join("")}
+      </ul>
+    `;
+  }
+
+  async function renderTodayFocus(){
+    const meta = document.getElementById("todayFocusMeta");
+    const settings = loadSettings();
+    const freq = settings.frequency === 6 ? 6 : 5;
+
+    const programmeDay = getProgrammeDayNumber();
+    const { week, dayInWeek } = getWeekAndDay(programmeDay);
+    const planUrl = getPlanUrlForWeek(week);
+
+    const [planRes, cardsRes] = await Promise.all([
+      fetch(planUrl, { cache: "no-store" }),
+      fetch(CARDS_URL, { cache: "no-store" })
+    ]);
+
+    if (!planRes.ok || !cardsRes.ok){
+      meta.textContent = "Could not load today’s focus (missing data files).";
+      renderFocusList([]);
+      return;
+    }
+
+    const plan = await planRes.json();
+    const cards = await cardsRes.json();
+
+    const dayPlan = (plan.days || []).find(d => d.day === dayInWeek);
+    if (!dayPlan){
+      meta.textContent = "No plan found for today.";
+      renderFocusList([]);
+      return;
+    }
+
+    // Day label
+    meta.textContent = `Week ${week} — Day ${dayInWeek}: ${dayPlan.name}`;
+
+    if (dayPlan.type === "rest"){
+      renderFocusList(["Rest day — recovery only (sleep, hydration, light movement)."]);
+      return;
+    }
+
+    if (dayInWeek === 6 && dayPlan.type === "optional" && freq === 5){
+      renderFocusList([
+        "Active recovery day (5 days/week).",
+        "If the boxer trains regularly, switch to 6 days/week."
+      ]);
+      return;
+    }
+
+    const map = new Map((cards || []).map(c => [c.id, c]));
+    const titles = (dayPlan.card_ids || [])
+      .map(id => map.get(id))
+      .filter(Boolean)
+      .map(c => c.title);
+
+    if (titles.length === 0){
+      renderFocusList(["No cards available for today (check card IDs)."]);
+      return;
+    }
+
+    renderFocusList(titles);
+  }
+
   async function renderStats(){
     const s = loadSettings();
 
@@ -216,6 +306,8 @@
 
     document.getElementById("weeklyStatus").textContent =
       `${completedDays}/${freq} days (${isFinite(pct) ? pct : 0}%)`;
+
+    await renderTodayFocus();
   }
 
   document.getElementById("saveFreq").onclick = async () => {
