@@ -17,10 +17,22 @@
 
     <div class="card">
       <h2>Parent – Progress</h2>
-      <div class="small" id="meta">Loading…</div>
+      <div class="small" id="status">Loading…</div>
     </div>
 
-    <div id="content"></div>
+    <!-- This stays hidden unless you open the page with ?debug=1 -->
+    <div class="card" id="debugCard" style="display:none;">
+      <div class="small"><strong>Response (debug)</strong></div>
+      <pre id="debugOut" class="small" style="white-space:pre-wrap; margin:10px 0 0;"></pre>
+    </div>
+
+    <!-- Placeholder for the real progress UI (we’ll build next) -->
+    <div class="card" id="uiCard" style="display:none;">
+      <div class="small"><strong>Weekly progress</strong></div>
+      <div class="small" style="margin-top:10px;">
+        This is the next step: render weekly completion here (instead of raw JSON).
+      </div>
+    </div>
 
     <div class="footer">
       boxXcel — Training support application. Training and information only.
@@ -30,33 +42,30 @@
 
 <script src="/assets/app.js"></script>
 <script>
-  // Keep your standard UI helpers
   renderTopbar("boxXcel — Parent Progress");
   renderNav();
 
-  // IMPORTANT: Define API_BASE ONCE (no duplicates anywhere else)
+  // IMPORTANT: single source of truth (do not declare API_BASE anywhere else in this file)
   const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
 
-  function getAccessToken() {
-    // Your app stores Cognito tokens in localStorage
-    return localStorage.getItem("access_token") || "";
+  function isDebug(){
+    return new URLSearchParams(window.location.search).get("debug") === "1";
   }
 
-  async function loadParentProgress() {
-    const meta = document.getElementById("meta");
-    const content = document.getElementById("content");
+  function getAuthToken(){
+    // Prefer access_token for API calls (JWT authorizer expects Authorization header)
+    return localStorage.getItem("access_token") || localStorage.getItem("id_token") || "";
+  }
 
-    meta.textContent = "Loading parent progress…";
-    content.innerHTML = "";
+  async function loadParentProgress(){
+    const statusEl = document.getElementById("status");
+    const debugCard = document.getElementById("debugCard");
+    const debugOut = document.getElementById("debugOut");
+    const uiCard = document.getElementById("uiCard");
 
-    const token = getAccessToken();
+    const token = getAuthToken();
     if (!token) {
-      meta.textContent = "No access token found. Please log in again.";
-      content.innerHTML = `
-        <div class="card">
-          <div class="small">You are not logged in. Please return to login and sign in again.</div>
-        </div>
-      `;
+      statusEl.textContent = "No login token found. Please log in again.";
       return;
     }
 
@@ -70,59 +79,37 @@
       });
 
       const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
       if (!res.ok) {
-        meta.textContent = `API error: ${res.status}`;
-        content.innerHTML = `
-          <div class="card">
-            <div class="small"><strong>Status:</strong> ${res.status}</div>
-            <div class="small"><strong>Body:</strong></div>
-            <pre class="small" style="white-space:pre-wrap; margin:0;">${escapeHtml(text)}</pre>
-          </div>
-        `;
+        statusEl.textContent = `Failed (${res.status}). Check permissions / logs.`;
+        if (isDebug()) {
+          debugCard.style.display = "";
+          debugOut.textContent = JSON.stringify(data, null, 2);
+        }
         return;
       }
 
-      // Try parse JSON, but still show raw if needed
-      let data;
-      try { data = JSON.parse(text); } catch { data = null; }
+      // Success
+      statusEl.textContent = "Loaded ✓";
+      console.log("Parent progress data:", data);
 
-      meta.textContent = "Loaded ✓";
+      // Only show raw response if debug=1
+      if (isDebug()) {
+        debugCard.style.display = "";
+        debugOut.textContent = JSON.stringify(data, null, 2);
+      }
 
-      content.innerHTML = `
-        <div class="card">
-          <div class="small"><strong>Response:</strong></div>
-          <pre class="small" style="white-space:pre-wrap; margin:0;">${
-            escapeHtml(data ? JSON.stringify(data, null, 2) : text)
-          }</pre>
-        </div>
-      `;
-
-      // Also log for debugging
-      console.log("Parent progress data:", data ?? text);
+      // Show the proper UI placeholder (we build this next)
+      uiCard.style.display = "";
 
     } catch (err) {
       console.error(err);
-      meta.textContent = "Failed to load parent progress.";
-      content.innerHTML = `
-        <div class="card">
-          <div class="small">Network error. Check API_BASE is correct and your internet connection.</div>
-        </div>
-      `;
+      statusEl.textContent = "Network error. Check API URL and your connection.";
     }
   }
 
-  // Small helper to safely show text in HTML
-  function escapeHtml(s){
-    return String(s ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-
-  // Run on page load
   loadParentProgress();
 </script>
 </body>
