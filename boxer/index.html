@@ -69,11 +69,19 @@
       </div>
     </div>
 
-    <!-- NEW: Today’s Focus -->
+    <!-- Today’s Focus -->
     <div class="card">
       <strong>Today’s Focus</strong>
       <div class="small" id="todayFocusMeta">Loading…</div>
       <div id="todayFocusList" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- This Week strip -->
+    <div class="card">
+      <strong>This Week</strong>
+      <div class="small" id="weekStripMeta">Loading…</div>
+      <div id="weekStrip"
+           style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;"></div>
     </div>
 
     <!-- Safety -->
@@ -98,6 +106,15 @@
   const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
   const CARDS_URL = "/boxer/data/training_cards_12_15.json";
+
+  function esc(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
 
   function todayISO(){
     const d = new Date();
@@ -148,13 +165,30 @@
     return "/boxer/data/plan_12_15_week1.json";
   }
 
-  function esc(s){
-    return String(s ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
+  // Day is complete ONLY if all required card IDs are completed
+  function isDayComplete(date){
+    const all = loadCompletions();
+    const d = all[date];
+    if (!d) return false;
+
+    const required = Array.isArray(d.required) ? d.required : [];
+    const done = Array.isArray(d.cards) ? d.cards : [];
+
+    if (required.length === 0) return false; // rest/optional days don’t count
+    return required.every(id => done.includes(id));
+  }
+
+  function datesLast7(){
+    const out = [];
+    const now = new Date();
+    for(let i=0;i<7;i++){
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off * 60000);
+      out.push(local.toISOString().slice(0,10));
+    }
+    return out;
   }
 
   // Ensure today's "required" cards are set even if user doesn't open Training
@@ -184,31 +218,6 @@
     const existing = all[date] || { cards: [] };
     all[date] = { ...existing, required };
     saveCompletions(all);
-  }
-
-  function isDayComplete(date){
-    const all = loadCompletions();
-    const d = all[date];
-    if (!d) return false;
-
-    const required = Array.isArray(d.required) ? d.required : [];
-    const done = Array.isArray(d.cards) ? d.cards : [];
-
-    if (required.length === 0) return false;
-    return required.every(id => done.includes(id));
-  }
-
-  function datesLast7(){
-    const out = [];
-    const now = new Date();
-    for(let i=0;i<7;i++){
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const off = d.getTimezoneOffset();
-      const local = new Date(d.getTime() - off * 60000);
-      out.push(local.toISOString().slice(0,10));
-    }
-    return out;
   }
 
   function renderFocusList(items){
@@ -254,7 +263,6 @@
       return;
     }
 
-    // Day label
     meta.textContent = `Week ${week} — Day ${dayInWeek}: ${dayPlan.name}`;
 
     if (dayPlan.type === "rest"){
@@ -284,6 +292,107 @@
     renderFocusList(titles);
   }
 
+  function startOfProgrammeWeek(startDateISO, weekNumber){
+    const start = new Date(startDateISO + "T00:00:00");
+    const d = new Date(start);
+    d.setDate(start.getDate() + (weekNumber - 1) * 7);
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0,10);
+  }
+
+  function addDays(iso, days){
+    const d = new Date(iso + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0,10);
+  }
+
+  function renderWeekStripDay(label, state, isToday){
+    const base =
+      "display:inline-flex; align-items:center; justify-content:center;" +
+      "min-width:44px; height:44px; border-radius:14px; padding:0 10px;" +
+      "border:1px solid rgba(203,213,225,.18);" +
+      "background:rgba(2,6,23,.15);" +
+      "font-weight:700;";
+
+    let symbol = "⭕";
+    let title = "Pending";
+    if (state === "done"){ symbol = "✅"; title = "Completed"; }
+    if (state === "rest"){ symbol = "—"; title = "Rest day"; }
+    if (state === "optional"){ symbol = "◻"; title = "Optional (5 days/week)"; }
+
+    const ring = isToday ? " box-shadow:0 0 0 2px rgba(0,123,255,.65) inset;" : "";
+    return `<div title="${title}" style="${base}${ring}">${symbol} ${label}</div>`;
+  }
+
+  async function renderWeekStrip(){
+    const meta = document.getElementById("weekStripMeta");
+    const holder = document.getElementById("weekStrip");
+
+    const settings = loadSettings();
+    const freq = settings.frequency === 6 ? 6 : 5;
+
+    const programmeDay = getProgrammeDayNumber();
+    const { week, dayInWeek } = getWeekAndDay(programmeDay);
+    const planUrl = getPlanUrlForWeek(week);
+
+    if (!settings.startDate){
+      meta.textContent = "Set a programme start date to track your week.";
+      holder.innerHTML = ["D1","D2","D3","D4","D5","D6","D7"]
+        .map(d => renderWeekStripDay(d, "pending", false))
+        .join("");
+      return;
+    }
+
+    const planRes = await fetch(planUrl, { cache:"no-store" });
+    if (!planRes.ok){
+      meta.textContent = "Could not load weekly plan.";
+      holder.innerHTML = "";
+      return;
+    }
+
+    const plan = await planRes.json();
+    const days = Array.isArray(plan.days) ? plan.days : [];
+
+    const weekStartISO = startOfProgrammeWeek(settings.startDate, week);
+    const today = todayISO();
+
+    meta.textContent = `Week ${week} overview (today highlighted)`;
+
+    const pieces = [];
+
+    for (let d = 1; d <= 7; d++){
+      const dayPlan = days.find(x => x.day === d) || { type:"training", card_ids:[] };
+      const dateISO = addDays(weekStartISO, d - 1);
+
+      let state = "pending";
+
+      if (dayPlan.type === "rest"){
+        state = "rest";
+      } else if (d === 6 && dayPlan.type === "optional" && freq === 5){
+        state = "optional";
+      } else {
+        const required =
+          (d === 6 && dayPlan.type === "optional" && freq === 5)
+            ? []
+            : (dayPlan.card_ids || []);
+
+        const all = loadCompletions();
+        const existing = all[dateISO] || { cards: [] };
+        all[dateISO] = { ...existing, required };
+        saveCompletions(all);
+
+        state = isDayComplete(dateISO) ? "done" : "pending";
+      }
+
+      pieces.push(renderWeekStripDay(`D${d}`, state, dateISO === today));
+    }
+
+    holder.innerHTML = pieces.join("");
+  }
+
   async function renderStats(){
     const s = loadSettings();
 
@@ -308,6 +417,7 @@
       `${completedDays}/${freq} days (${isFinite(pct) ? pct : 0}%)`;
 
     await renderTodayFocus();
+    await renderWeekStrip();
   }
 
   document.getElementById("saveFreq").onclick = async () => {

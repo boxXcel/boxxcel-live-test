@@ -37,7 +37,8 @@
   const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
   const CARDS_URL = "/boxer/data/training_cards_12_15.json";
-  function getPlanUrlForWeek(week){
+function getPlanUrlForWeek(week){
+  if (week === 3) return "/boxer/data/plan_12_15_week3.json";
   if (week === 2) return "/boxer/data/plan_12_15_week2.json";
   return "/boxer/data/plan_12_15_week1.json"; // default
 }

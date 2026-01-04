@@ -1,0 +1,47 @@
+{
+  "week": 3,
+  "days": [
+    {
+      "day": 1,
+      "name": "Foundation — Warm-up + Technique (Progressed)",
+      "type": "training",
+      "card_ids": ["skip-001", "shadow-003", "mobility-001"]
+    },
+    {
+      "day": 2,
+      "name": "Footwork + Core (Progressed)",
+      "type": "training",
+      "card_ids": ["skip-001", "footwork-001", "core-003", "mobility-001"]
+    },
+    {
+      "day": 3,
+      "name": "Light Technique & Recovery",
+      "type": "training",
+      "card_ids": ["shadow-003", "mobility-001"]
+    },
+    {
+      "day": 4,
+      "name": "Technique + Conditioning (Progressed)",
+      "type": "training",
+      "card_ids": ["skip-001", "shadow-003", "conditioning-003", "mobility-001"]
+    },
+    {
+      "day": 5,
+      "name": "Conditioning + Core (Progressed)",
+      "type": "training",
+      "card_ids": ["conditioning-003", "core-003", "mobility-001"]
+    },
+    {
+      "day": 6,
+      "name": "Optional Light Session",
+      "type": "optional",
+      "card_ids": ["mobility-001"]
+    },
+    {
+      "day": 7,
+      "name": "Rest day",
+      "type": "rest",
+      "card_ids": []
+    }
+  ]
+}

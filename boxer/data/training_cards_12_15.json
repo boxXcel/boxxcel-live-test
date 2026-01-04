@@ -226,4 +226,81 @@
     "Reduce rounds if needed."
   ]
 }
+,
+{
+  "id": "shadow-003",
+  "title": "Shadowboxing — Technical Control (Progressed 2)",
+  "duration": "12–14 minutes",
+  "goal": "Develop clean technique under moderate fatigue while maintaining balance and control.",
+  "equipment": "None",
+  "steps": [
+    "Round 1: Jab only + step out (45s work / 60s rest).",
+    "Round 2: Jab–cross, reset guard every rep (45s / 60s).",
+    "Round 3: Jab–cross + slip (small movement), then reset (45s / 60s).",
+    "Round 4: Jab–cross + step back + reset (45s / 60s).",
+    "Round 5: Controlled freestyle technique (clean punches only).",
+    "Cool-down: 2 minutes relaxed movement and breathing."
+  ],
+  "cues": [
+    "Hands return to guard after every punch.",
+    "Stay balanced — no reaching or rushing.",
+    "Exhale lightly on punches."
+  ],
+  "safety": [
+    "Stop immediately if dizzy or unwell.",
+    "No snapping punches — full control at all times.",
+    "Reduce intensity if technique drops."
+  ]
+},
+{
+  "id": "core-003",
+  "title": "Core Stability — Foundation (Progressed 2)",
+  "duration": "12–14 minutes",
+  "goal": "Increase core endurance safely to support posture, balance and punching mechanics.",
+  "equipment": "Exercise mat (optional)",
+  "steps": [
+    "Front plank: 3 x 30 seconds (rest 20–30s).",
+    "Side plank (left): 2 x 25 seconds.",
+    "Side plank (right): 2 x 25 seconds.",
+    "Dead bug: 2 x 10 slow reps per side.",
+    "Standing brace: 3 x 7 controlled breaths."
+  ],
+  "cues": [
+    "Neutral spine — no sagging or twisting.",
+    "Breathe normally; do not hold breath.",
+    "End sets early if form degrades."
+  ],
+  "safety": [
+    "No pain in lower back or neck.",
+    "Reduce times if shaking excessively.",
+    "Under-18s must not use added resistance."
+  ]
+},
+{
+  "id": "conditioning-003",
+  "title": "Conditioning — Boxing Intervals (Progressed 2)",
+  "duration": "14–16 minutes",
+  "goal": "Improve aerobic conditioning while maintaining technical control.",
+  "equipment": "Timer",
+  "steps": [
+    "Warm-up: 2 minutes light movement.",
+    "Round 1: 45s shadowboxing, 60s walk.",
+    "Round 2: 45s shadowboxing, 60s walk.",
+    "Round 3: 45s shadowboxing, 60s walk.",
+    "Round 4: 45s shadowboxing, 60s walk.",
+    "Round 5: 45s shadowboxing, 60s walk.",
+    "Round 6: 45s shadowboxing, 60s walk.",
+    "Cool-down: 2 minutes walking and breathing."
+  ],
+  "cues": [
+    "Controlled pace — never maximal effort.",
+    "Relax shoulders and hands.",
+    "Focus on steady breathing."
+  ],
+  "safety": [
+    "Stop immediately if dizzy, nauseous or uncomfortable.",
+    "Hydrate before and after training.",
+    "Reduce rounds if needed — control first."
+  ]
+}
 ]
