@@ -47,14 +47,19 @@ function renderNav(){
   const el = document.querySelector("[data-nav]");
   if(!el) return;
 
-  el.innerHTML = `
-    <div class="nav">
-      <a href="/boxer/index.html">Dashboard</a>
-      <a href="/boxer/training.html">Training</a>
-      <a href="/boxer/weight.html">Weight</a>
-      <a href="/boxer/profile.html">Profile</a>
-    </div>
-  `;
+ el.innerHTML = `
+  <div class="nav">
+    <a href="/boxer/index.html">Dashboard</a>
+    <a href="/boxer/training.html">Training</a>
+    <a href="/boxer/weight.html">Weight</a>
+    <a href="/boxer/profile.html">Profile</a>
+
+    <hr />
+
+    <a href="/parent/training.html">Parent – Training</a>
+    <a href="/parent/progress.html">Parent – Progress</a>
+  </div>
+`;
 
   document.querySelectorAll(".nav a").forEach(a=>{
     if(window.location.pathname.endsWith(a.getAttribute("href"))){

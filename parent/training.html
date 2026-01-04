@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>boxXcel — Parent view</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+
+<script src="/auth/guard.js"></script>
+
+<div class="shell">
+  <div class="topbar" data-topbar></div>
+
+  <div class="container">
+    <div data-nav></div>
+
+    <div class="card">
+      <h2 id="title">Parent view — Training</h2>
+      <div class="small" id="meta">Loading…</div>
+    </div>
+
+    <div class="card" id="safeguardingCard" style="border-left:6px solid #dc2626;">
+      <div class="small">
+        <strong>Safeguarding:</strong> This view is informational. Under-18s should train with appropriate supervision.
+        If anything feels unsafe or unclear, stop and speak to the coach.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:6px;">This week overview</h2>
+      <div class="small" id="weekSummary">Loading weekly summary…</div>
+      <div id="weekList" class="small"></div>
+    </div>
+
+    <div class="card">
+      <h2 id="dayTitle" style="margin-bottom:6px;">Today</h2>
+      <div class="small" id="dayMeta">Loading today’s plan…</div>
+    </div>
+
+    <div id="cards"></div>
+
+    <div class="footer">
+      boxXcel — Training support application. Training and information only.
+    </div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+
+<script>
+/* ============================================================
+   INIT
+============================================================ */
+renderTopbar("boxXcel — Parent view");
+renderNav();
+
+/* ============================================================
+   CONFIG (same as Training page)
+============================================================ */
+const SETTINGS_KEY    = "boxxcel_settings_v1";
+const COMPLETIONS_KEY = "boxxcel_completions_v1";
+
+const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+const PROGRAMME = "12wk_fundamentals";
+const AGE_GROUP = "12-15";
+
+/* ============================================================
+   API HELPERS
+============================================================ */
+function cardsApiUrl() {
+  return `${API_BASE}/api/cards?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}`;
+}
+function planApiUrlForWeek(week) {
+  return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
+}
+
+/* ============================================================
+   UTILITIES
+============================================================ */
+function esc(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function todayISO(){
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0,10);
+}
+
+function loadSettings(){
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function loadCompletions(){
+  try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function daysBetween(startISO, endISO){
+  const s = new Date(startISO + "T00:00:00");
+  const e = new Date(endISO + "T00:00:00");
+  return Math.floor((e - s) / 86400000);
+}
+
+function getProgrammeDayNumber(){
+  const s = loadSettings();
+  if (!s.startDate) return 1;
+  return Math.max(1, daysBetween(s.startDate, todayISO()) + 1);
+}
+
+function getWeekAndDay(dayNumber){
+  return {
+    week: Math.floor((dayNumber - 1) / 7) + 1,
+    dayInWeek: ((dayNumber - 1) % 7) + 1
+  };
+}
+
+function getCompletedSetFor(dateISO){
+  const all = loadCompletions();
+  const d = all[dateISO] || { cards: [] };
+  return new Set(d.cards || []);
+}
+
+function getRequiredFor(dateISO){
+  const all = loadCompletions();
+  const d = all[dateISO] || {};
+  return Array.isArray(d.required) ? d.required : [];
+}
+
+function list(arr){
+  if (!arr || !arr.length) return `<div class="small">—</div>`;
+  return `<ul class="small">${arr.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
+}
+
+/* ============================================================
+   CARD RENDER (READ-ONLY)
+============================================================ */
+function cardHtmlReadOnly(c, done){
+  if (!c){
+    return `
+      <div class="card">
+        <div class="small"><strong>Missing card</strong></div>
+        <div class="small">Card referenced in plan but not returned by API.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="card">
+      <h2>${esc(c.title)}</h2>
+
+      <div class="small"><strong>Status:</strong> ${done ? "Completed ✓" : "Not completed"}</div>
+      <div class="small"><strong>Goal:</strong> ${esc(c.goal)}</div>
+      <div class="small"><strong>Time:</strong> ${esc(c.duration)}</div>
+      <div class="small"><strong>Equipment:</strong> ${esc(c.equipment)}</div>
+
+      <div class="small"><strong>Steps</strong></div>
+      ${list(c.steps)}
+
+      ${c.cues ? `<div class="small"><strong>Cues</strong></div>${list(c.cues)}` : ""}
+
+      <div class="small"><strong>Safety</strong></div>
+      ${list(c.safety)}
+    </div>
+  `;
+}
+
+/* ============================================================
+   WEEK SUMMARY (7 days)
+============================================================ */
+function renderWeekSummary(plan, cardsMap, week){
+  const startDate = loadSettings().startDate;
+  // If startDate missing, we still show a simple weekly completion based on stored required[]/cards[] per date
+  const weekBaseDay = (week - 1) * 7 + 1;
+
+  const rows = [];
+  let requiredTotal = 0;
+  let doneTotal = 0;
+
+  for (let d = 1; d <= 7; d++){
+    const dayPlan = plan.days.find(x => x.day === d);
+    const programmeDayNumber = weekBaseDay + (d - 1);
+
+    // derive date for that programme day if startDate exists
+    let dateISO = null;
+    if (startDate){
+      const date = new Date(startDate + "T00:00:00");
+      date.setDate(date.getDate() + (programmeDayNumber - 1));
+      const off = date.getTimezoneOffset();
+      const local = new Date(date.getTime() - off * 60000);
+      dateISO = local.toISOString().slice(0,10);
+    }
+
+    const requiredIds = (dateISO ? getRequiredFor(dateISO) : (dayPlan?.card_ids || []));
+    const completed = (dateISO ? getCompletedSetFor(dateISO) : new Set());
+
+    // if no stored completions for derived date, we still compute done count as 0 (parent view is honest)
+    const requiredCount = Array.isArray(requiredIds) ? requiredIds.length : 0;
+    let doneCount = 0;
+    if (dateISO && requiredCount){
+      for (const id of requiredIds) if (completed.has(id)) doneCount++;
+    }
+
+    requiredTotal += requiredCount;
+    doneTotal += doneCount;
+
+    const label = dayPlan ? `${dayPlan.day}: ${dayPlan.name}` : `Day ${d}`;
+    const type = dayPlan ? dayPlan.type : "training";
+    const status =
+      type === "rest" ? "Rest" :
+      requiredCount === 0 ? "Optional" :
+      (dateISO ? (doneCount >= requiredCount ? "Completed ✓" : `${doneCount}/${requiredCount}`) : "—");
+
+    rows.push({ label, dateISO, status });
+  }
+
+  const pct = requiredTotal ? Math.round((doneTotal / requiredTotal) * 100) : 0;
+  document.getElementById("weekSummary").textContent =
+    requiredTotal ? `Week ${week} progress: ${doneTotal}/${requiredTotal} (${pct}%)` : `Week ${week} progress: —`;
+
+  document.getElementById("weekList").innerHTML = `
+    <ul>
+      ${rows.map(r => `
+        <li>
+          <strong>${esc(r.label)}</strong>
+          ${r.dateISO ? `<span class="small"> (${esc(r.dateISO)})</span>` : ``}
+          — ${esc(r.status)}
+        </li>
+      `).join("")}
+    </ul>
+  `;
+}
+
+/* ============================================================
+   MAIN LOAD
+============================================================ */
+async function load(){
+  const dayNum = getProgrammeDayNumber();
+  const { week, dayInWeek } = getWeekAndDay(dayNum);
+
+  document.getElementById("title").textContent = `Parent view — Age ${AGE_GROUP}`;
+  document.getElementById("meta").textContent = `Programme: ${PROGRAMME} • Week ${week} • Today: Day ${dayInWeek}`;
+
+  const [cardsRes, planRes] = await Promise.all([
+    fetch(cardsApiUrl(), { cache: "no-store" }),
+    fetch(planApiUrlForWeek(week), { cache: "no-store" })
+  ]);
+
+  if (!cardsRes.ok) throw new Error(`Cards API failed (${cardsRes.status})`);
+  if (!planRes.ok)  throw new Error(`Plan API failed (${planRes.status})`);
+
+  const cards = await cardsRes.json();
+  const plan  = await planRes.json();
+
+  const cardsMap = Object.fromEntries(cards.map(c => [c.id, c]));
+
+  // Week summary
+  renderWeekSummary(plan, cardsMap, week);
+
+  // Today
+  const dayPlan = plan.days.find(d => d.day === dayInWeek);
+  if (!dayPlan){
+    document.getElementById("dayMeta").textContent = "No plan found for today.";
+    document.getElementById("cards").innerHTML = "";
+    return;
+  }
+
+  document.getElementById("dayTitle").textContent = `Today — ${dayPlan.name}`;
+  if (dayPlan.type === "rest"){
+    document.getElementById("dayMeta").textContent = "Rest day";
+    document.getElementById("cards").innerHTML =
+      `<div class="card"><div class="small">Recovery day. No training required.</div></div>`;
+    return;
+  }
+
+  // derive today date ISO for completion read
+  const dateISO = todayISO();
+  const done = getCompletedSetFor(dateISO);
+
+  const required = getRequiredFor(dateISO);
+  const requiredText =
+    Array.isArray(required) && required.length
+      ? `Required cards: ${required.length}`
+      : (dayPlan.type === "optional" ? "Optional session" : "Required cards not yet set (complete once in Training view)");
+
+  document.getElementById("dayMeta").textContent = requiredText;
+
+  document.getElementById("cards").innerHTML =
+    dayPlan.card_ids.map(id => cardHtmlReadOnly(cardsMap[id], done.has(id))).join("");
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+load().catch(err => {
+  console.error(err);
+  document.getElementById("meta").textContent = "Error";
+  document.getElementById("dayMeta").textContent = "Failed to load.";
+  document.getElementById("cards").innerHTML = `
+    <div class="card">
+      <div class="small">Unable to load parent view. Please refresh.</div>
+    </div>
+  `;
+});
+</script>
+
+</body>
+</html>
