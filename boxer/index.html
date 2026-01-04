@@ -111,7 +111,64 @@
     catch { return {}; }
   }
 
-  /* Day is complete ONLY if all required card IDs are completed */
+  function saveCompletions(obj){
+    localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj));
+  }
+
+  function daysBetween(startISO, endISO){
+    const s = new Date(startISO + "T00:00:00");
+    const e = new Date(endISO + "T00:00:00");
+    return Math.floor((e - s) / (24*60*60*1000));
+  }
+
+  function getProgrammeDayNumber(){
+    const s = loadSettings();
+    if (!s.startDate) return 1;
+    return Math.max(1, daysBetween(s.startDate, todayISO()) + 1);
+  }
+
+  function getWeekAndDay(dayNumber){
+    return {
+      week: Math.floor((dayNumber - 1) / 7) + 1,
+      dayInWeek: ((dayNumber - 1) % 7) + 1
+    };
+  }
+
+  function getPlanUrlForWeek(week){
+    if (week === 2) return "/boxer/data/plan_12_15_week2.json";
+    return "/boxer/data/plan_12_15_week1.json";
+  }
+
+  // Ensure today's "required" cards are set even if user doesn't open Training
+  async function ensureTodayRequiredIsSet(){
+    const settings = loadSettings();
+    const freq = settings.frequency === 6 ? 6 : 5;
+
+    const programmeDay = getProgrammeDayNumber();
+    const { week, dayInWeek } = getWeekAndDay(programmeDay);
+    const planUrl = getPlanUrlForWeek(week);
+
+    const res = await fetch(planUrl, { cache: "no-store" });
+    if (!res.ok) return;
+
+    const plan = await res.json();
+    const dayPlan = (plan.days || []).find(d => d.day === dayInWeek);
+    if (!dayPlan) return;
+
+    const date = todayISO();
+
+    // Compute required list using same rules as training.html
+    const required =
+      (dayInWeek === 6 && dayPlan.type === "optional" && freq === 5)
+        ? []
+        : (dayPlan.card_ids || []);
+
+    const all = loadCompletions();
+    const existing = all[date] || { cards: [] };
+    all[date] = { ...existing, required };
+    saveCompletions(all);
+  }
+
   function isDayComplete(date){
     const all = loadCompletions();
     const d = all[date];
@@ -120,7 +177,7 @@
     const required = Array.isArray(d.required) ? d.required : [];
     const done = Array.isArray(d.cards) ? d.cards : [];
 
-    if (required.length === 0) return false; // rest/optional days don’t count
+    if (required.length === 0) return false;
     return required.every(id => done.includes(id));
   }
 
@@ -137,7 +194,7 @@
     return out;
   }
 
-  function renderStats(){
+  async function renderStats(){
     const s = loadSettings();
 
     const freq = s.frequency === 6 ? 6 : 5;
@@ -146,6 +203,8 @@
     if (s.startDate){
       document.getElementById("startDate").value = s.startDate;
     }
+
+    await ensureTodayRequiredIsSet();
 
     const today = todayISO();
     document.getElementById("todayStatus").textContent =
@@ -159,16 +218,16 @@
       `${completedDays}/${freq} days (${isFinite(pct) ? pct : 0}%)`;
   }
 
-  document.getElementById("saveFreq").onclick = () => {
+  document.getElementById("saveFreq").onclick = async () => {
     const s = loadSettings();
     s.frequency = Number(document.getElementById("freq").value) === 6 ? 6 : 5;
     saveSettings(s);
     document.getElementById("freqSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("freqSaved").textContent = "", 1500);
-    renderStats();
+    await renderStats();
   };
 
-  document.getElementById("saveStart").onclick = () => {
+  document.getElementById("saveStart").onclick = async () => {
     const val = document.getElementById("startDate").value;
     if (!val) return;
     const s = loadSettings();
@@ -176,7 +235,7 @@
     saveSettings(s);
     document.getElementById("startSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("startSaved").textContent = "", 1500);
-    renderStats();
+    await renderStats();
   };
 
   renderStats();

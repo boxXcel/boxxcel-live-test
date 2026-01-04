@@ -37,7 +37,10 @@
   const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
   const CARDS_URL = "/boxer/data/training_cards_12_15.json";
-  const PLAN_URL  = "/boxer/data/plan_12_15_week1.json";
+  function getPlanUrlForWeek(week){
+  if (week === 2) return "/boxer/data/plan_12_15_week2.json";
+  return "/boxer/data/plan_12_15_week1.json"; // default
+}
 
   function esc(s){
     return String(s ?? "")
@@ -141,10 +144,12 @@
     const dayNum = getProgrammeDayNumber();
     const { week, dayInWeek } = getWeekAndDay(dayNum);
 
-    const [cardsRes, planRes] = await Promise.all([
-      fetch(CARDS_URL, { cache:"no-store" }),
-      fetch(PLAN_URL,  { cache:"no-store" })
-    ]);
+    const planUrl = getPlanUrlForWeek(week);
+
+const [cardsRes, planRes] = await Promise.all([
+  fetch(CARDS_URL, { cache:"no-store" }),
+  fetch(planUrl,  { cache:"no-store" })
+]);
 
     const cards = await cardsRes.json();
     const plan = await planRes.json();

@@ -151,4 +151,79 @@
     "Clear space of obstacles."
   ]
 }
+,
+{
+  "id": "shadow-002",
+  "title": "Shadowboxing — Technical Control (Progressed)",
+  "duration": "10–12 minutes",
+  "goal": "Improve technical consistency, balance, and control under light fatigue.",
+  "equipment": "None",
+  "steps": [
+    "Round 1: Jab only, focus on balance (40s work / 60s rest).",
+    "Round 2: Jab + cross, full extension (40s / 60s).",
+    "Round 3: Jab + cross + step back (40s / 60s).",
+    "Round 4: Jab + cross + step back (40s / 60s).",
+    "Cool-down: 2 minutes relaxed movement."
+  ],
+  "cues": [
+    "Hands return to guard after every punch.",
+    "Stay relaxed — speed comes from technique, not tension.",
+    "Maintain stance at all times."
+  ],
+  "safety": [
+    "Stop if dizzy or breathless.",
+    "No snapping punches — control every rep.",
+    "Quality over quantity."
+  ]
+},
+{
+  "id": "core-002",
+  "title": "Core Stability — Foundation (Progressed)",
+  "duration": "10–12 minutes",
+  "goal": "Improve trunk stability and postural control with safe volume increase.",
+  "equipment": "Exercise mat (optional)",
+  "steps": [
+    "Front plank: 3 x 25 seconds (rest 20s).",
+    "Side plank (left): 2 x 20 seconds.",
+    "Side plank (right): 2 x 20 seconds.",
+    "Dead bug: 2 x 8 slow reps per side.",
+    "Standing brace: 3 x 6 controlled breaths."
+  ],
+  "cues": [
+    "Brace gently — do not hold breath.",
+    "Neutral spine throughout.",
+    "Stop before form breaks."
+  ],
+  "safety": [
+    "No pain in lower back or neck.",
+    "Reduce time if shaking excessively.",
+    "No external resistance."
+  ]
+},
+{
+  "id": "conditioning-002",
+  "title": "Conditioning — Boxing Intervals (Progressed)",
+  "duration": "12–14 minutes",
+  "goal": "Gradually increase aerobic capacity while maintaining control.",
+  "equipment": "Timer",
+  "steps": [
+    "Warm-up: 2 minutes light movement.",
+    "Round 1: 40s shadowboxing, 60s walk.",
+    "Round 2: 40s shadowboxing, 60s walk.",
+    "Round 3: 40s shadowboxing, 60s walk.",
+    "Round 4: 40s shadowboxing, 60s walk.",
+    "Round 5: 40s shadowboxing, 60s walk.",
+    "Cool-down: 2 minutes walking and breathing."
+  ],
+  "cues": [
+    "Controlled pace — not maximal effort.",
+    "Hands stay relaxed.",
+    "Focus on breathing rhythm."
+  ],
+  "safety": [
+    "Stop immediately if dizzy or nauseous.",
+    "Hydrate before and after.",
+    "Reduce rounds if needed."
+  ]
+}
 ]
