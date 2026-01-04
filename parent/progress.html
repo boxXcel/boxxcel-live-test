@@ -17,8 +17,10 @@
 
     <div class="card">
       <h2>Parent – Progress</h2>
-      <div class="small">This page is live. Next step: show weekly progress and completion.</div>
+      <div class="small" id="meta">Loading…</div>
     </div>
+
+    <div id="content"></div>
 
     <div class="footer">
       boxXcel — Training support application. Training and information only.
@@ -27,18 +29,34 @@
 </div>
 
 <script src="/assets/app.js"></script>
-
 <script>
+  // Keep your standard UI helpers
   renderTopbar("boxXcel — Parent Progress");
   renderNav();
 
+  // IMPORTANT: Define API_BASE ONCE (no duplicates anywhere else)
   const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
 
-  async function loadParentProgress() {
-    const token = localStorage.getItem("access_token");
+  function getAccessToken() {
+    // Your app stores Cognito tokens in localStorage
+    return localStorage.getItem("access_token") || "";
+  }
 
+  async function loadParentProgress() {
+    const meta = document.getElementById("meta");
+    const content = document.getElementById("content");
+
+    meta.textContent = "Loading parent progress…";
+    content.innerHTML = "";
+
+    const token = getAccessToken();
     if (!token) {
-      console.error("No access token found");
+      meta.textContent = "No access token found. Please log in again.";
+      content.innerHTML = `
+        <div class="card">
+          <div class="small">You are not logged in. Please return to login and sign in again.</div>
+        </div>
+      `;
       return;
     }
 
@@ -47,25 +65,65 @@
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`
-        }
+        },
+        cache: "no-store"
       });
 
+      const text = await res.text();
+
       if (!res.ok) {
-        console.error("API error:", res.status);
+        meta.textContent = `API error: ${res.status}`;
+        content.innerHTML = `
+          <div class="card">
+            <div class="small"><strong>Status:</strong> ${res.status}</div>
+            <div class="small"><strong>Body:</strong></div>
+            <pre class="small" style="white-space:pre-wrap; margin:0;">${escapeHtml(text)}</pre>
+          </div>
+        `;
         return;
       }
 
-      const data = await res.json();
-      console.log("Parent progress data:", data);
+      // Try parse JSON, but still show raw if needed
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
 
-      // later we will render this to the page
+      meta.textContent = "Loaded ✓";
+
+      content.innerHTML = `
+        <div class="card">
+          <div class="small"><strong>Response:</strong></div>
+          <pre class="small" style="white-space:pre-wrap; margin:0;">${
+            escapeHtml(data ? JSON.stringify(data, null, 2) : text)
+          }</pre>
+        </div>
+      `;
+
+      // Also log for debugging
+      console.log("Parent progress data:", data ?? text);
+
     } catch (err) {
-      console.error("Fetch failed:", err);
+      console.error(err);
+      meta.textContent = "Failed to load parent progress.";
+      content.innerHTML = `
+        <div class="card">
+          <div class="small">Network error. Check API_BASE is correct and your internet connection.</div>
+        </div>
+      `;
     }
   }
 
+  // Small helper to safely show text in HTML
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  // Run on page load
   loadParentProgress();
 </script>
-
 </body>
 </html>
