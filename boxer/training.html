@@ -36,11 +36,16 @@
   const SETTINGS_KEY = "boxxcel_settings_v1";
   const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
-  const CARDS_URL = "/boxer/data/training_cards_12_15.json";
-function getPlanUrlForWeek(week){
-  if (week === 3) return "/boxer/data/plan_12_15_week3.json";
-  if (week === 2) return "/boxer/data/plan_12_15_week2.json";
-  return "/boxer/data/plan_12_15_week1.json"; // default
+// ===== API CONFIG =====
+const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+const PROGRAMME = "12wk_fundamentals";
+const AGE_GROUP = "12-15";
+
+function cardsApiUrl(){
+  return `${API_BASE}/api/cards?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}`;
+}
+function planApiUrlForWeek(week){
+  return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
 }
 
   function esc(s){
@@ -145,12 +150,15 @@ function getPlanUrlForWeek(week){
     const dayNum = getProgrammeDayNumber();
     const { week, dayInWeek } = getWeekAndDay(dayNum);
 
-    const planUrl = getPlanUrlForWeek(week);
-
 const [cardsRes, planRes] = await Promise.all([
-  fetch(CARDS_URL, { cache:"no-store" }),
-  fetch(planUrl,  { cache:"no-store" })
-]);
+  if (!cardsRes.ok){
+  const t = await cardsRes.text().catch(()=> "");
+  throw new Error(`Cards API failed (${cardsRes.status}): ${t}`);
+}
+if (!planRes.ok){
+  const t = await planRes.text().catch(()=> "");
+  throw new Error(`Plan API failed (${planRes.status}): ${t}`);
+}
 
     const cards = await cardsRes.json();
     const plan = await planRes.json();
@@ -200,7 +208,21 @@ const [cardsRes, planRes] = await Promise.all([
     });
   }
 
-  load();
+  load().catch(err => {
+  console.error(err);
+
+  const meta = document.getElementById("dayMeta");
+  if (meta) meta.textContent = "Error loading training plan.";
+
+  const cards = document.getElementById("cards");
+  if (cards) {
+    cards.innerHTML = `
+      <div class="card">
+        <div class="small">Unable to load training data. Please refresh.</div>
+      </div>
+    `;
+  }
+});
 </script>
 </body>
 </html>
