@@ -5,7 +5,101 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>boxXcel — Parent Progress</title>
   <link rel="stylesheet" href="/assets/app.css" />
+
+  <style>
+    .grid-3{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:14px;
+      margin-top:14px;
+    }
+    @media (max-width: 900px){
+      .grid-3{ grid-template-columns:1fr; }
+    }
+    .tile{
+      background: var(--card, #fff);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    }
+    .tile .label{ opacity:.75; font-size: 13px; }
+    .tile .value{ font-size: 28px; font-weight: 800; margin-top: 6px; }
+
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .btn{
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: inherit;
+      padding: 10px 14px;
+      border-radius: 14px;
+      cursor:pointer;
+      font-weight: 700;
+    }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+    .weekline{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .muted{ opacity:.75; }
+    .small2{ font-size: 13px; opacity:.85; }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      overflow:hidden;
+      border-radius: 18px;
+      background: rgba(255,255,255,.06);
+    }
+    th, td{
+      padding: 12px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      text-align:left;
+      vertical-align:middle;
+    }
+    th{
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      opacity:.8;
+    }
+    .bar{
+      height: 10px;
+      width: 180px;
+      max-width: 40vw;
+      background: rgba(255,255,255,.12);
+      border-radius: 999px;
+      overflow:hidden;
+    }
+    .bar > div{
+      height: 100%;
+      width: 0%;
+      background: rgba(0,123,255,.95);
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius:999px;
+      background: rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.12);
+      font-size: 13px;
+      font-weight:700;
+    }
+    .ok{ color: #b6ffcf; }
+    .warn{ color: #ffe6a6; }
+  </style>
 </head>
+
 <body>
 <script src="/auth/guard.js"></script>
 
@@ -16,21 +110,58 @@
     <div data-nav></div>
 
     <div class="card">
-      <h2>Parent – Progress</h2>
-      <div class="small" id="status">Loading…</div>
+      <div class="row">
+        <div>
+          <h2 style="margin:0">Parent – Progress</h2>
+          <div class="small2 muted" id="statusLine">Loading…</div>
+        </div>
+
+        <div class="weekline">
+          <button class="btn" id="prevWeek">◀ Previous</button>
+          <span class="pill" id="weekLabel">Week</span>
+          <button class="btn" id="nextWeek">Next ▶</button>
+        </div>
+      </div>
     </div>
 
-    <!-- This stays hidden unless you open the page with ?debug=1 -->
-    <div class="card" id="debugCard" style="display:none;">
-      <div class="small"><strong>Response (debug)</strong></div>
-      <pre id="debugOut" class="small" style="white-space:pre-wrap; margin:10px 0 0;"></pre>
+    <div class="grid-3">
+      <div class="tile">
+        <div class="label">Days completed</div>
+        <div class="value" id="daysDone">—</div>
+      </div>
+      <div class="tile">
+        <div class="label">Cards completed</div>
+        <div class="value" id="cardsDone">—</div>
+      </div>
+      <div class="tile">
+        <div class="label">Completion</div>
+        <div class="value" id="percentDone">—</div>
+      </div>
     </div>
 
-    <!-- Placeholder for the real progress UI (we’ll build next) -->
-    <div class="card" id="uiCard" style="display:none;">
-      <div class="small"><strong>Weekly progress</strong></div>
-      <div class="small" style="margin-top:10px;">
-        This is the next step: render weekly completion here (instead of raw JSON).
+    <div class="card" style="margin-top:14px">
+      <div class="row" style="margin-bottom:10px">
+        <div class="pill" id="boxerPill">Boxer: (not selected yet)</div>
+        <div class="small2 muted">This will show data once the API returns weekly progress.</div>
+      </div>
+
+      <div id="emptyState" class="small2 muted" style="display:none">
+        No progress data returned yet (your API is live, but not returning progress fields).
+      </div>
+
+      <div id="tableWrap" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:140px">Day</th>
+              <th style="width:120px">Required</th>
+              <th style="width:120px">Completed</th>
+              <th>Progress</th>
+              <th style="width:120px">Status</th>
+            </tr>
+          </thead>
+          <tbody id="weekRows"></tbody>
+        </table>
       </div>
     </div>
 
@@ -45,72 +176,176 @@
   renderTopbar("boxXcel — Parent Progress");
   renderNav();
 
-  // IMPORTANT: single source of truth (do not declare API_BASE anywhere else in this file)
+  // IMPORTANT: correct API id is ...5l4 (letter l), not ...514
   const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
 
-  function isDebug(){
-    return new URLSearchParams(window.location.search).get("debug") === "1";
+  function isoDate(d){
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0,10);
   }
 
-  function getAuthToken(){
-    // Prefer access_token for API calls (JWT authorizer expects Authorization header)
-    return localStorage.getItem("access_token") || localStorage.getItem("id_token") || "";
+  function startOfWeekMonday(date){
+    const d = new Date(date);
+    const day = d.getDay(); // 0 Sun .. 6 Sat
+    const diff = (day === 0 ? -6 : 1) - day; // move to Monday
+    d.setDate(d.getDate() + diff);
+    d.setHours(0,0,0,0);
+    return d;
   }
 
-  async function loadParentProgress(){
-    const statusEl = document.getElementById("status");
-    const debugCard = document.getElementById("debugCard");
-    const debugOut = document.getElementById("debugOut");
-    const uiCard = document.getElementById("uiCard");
+  function addDays(date, n){
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
 
-    const token = getAuthToken();
+  function fmtWeekRange(monday){
+    const sun = addDays(monday, 6);
+    return `${isoDate(monday)} → ${isoDate(sun)}`;
+  }
+
+  function getAccessToken(){
+    // Your app stores tokens here (confirmed in your console)
+    return localStorage.getItem("access_token") || "";
+  }
+
+  let weekStart = startOfWeekMonday(new Date());
+
+  async function fetchParentProgress(weekStartISO){
+    const token = getAccessToken();
     if (!token) {
-      statusEl.textContent = "No login token found. Please log in again.";
-      return;
+      throw new Error("No access token found. Please log in again.");
     }
 
+    // We will support week_start query now (backend can ignore it until implemented)
+    const url = `${API_BASE}/api/parent/progress?week_start=${encodeURIComponent(weekStartISO)}`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+
+    if (!res.ok) {
+      const msg = data && (data.message || data.error) ? (data.message || data.error) : `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return data;
+  }
+
+  function setStatus(msg){
+    const el = document.getElementById("statusLine");
+    if (el) el.textContent = msg;
+  }
+
+  function setSummary(daysDone, daysTotal, cardsDone, cardsTotal){
+    document.getElementById("daysDone").textContent = `${daysDone}/${daysTotal}`;
+    document.getElementById("cardsDone").textContent = `${cardsDone}/${cardsTotal}`;
+    const pct = cardsTotal > 0 ? Math.round((cardsDone / cardsTotal) * 100) : 0;
+    document.getElementById("percentDone").textContent = `${pct}%`;
+  }
+
+  function renderEmpty(){
+    document.getElementById("emptyState").style.display = "block";
+    document.getElementById("tableWrap").style.display = "none";
+    setSummary(0, 7, 0, 0);
+  }
+
+  function renderTable(days){
+    const tbody = document.getElementById("weekRows");
+    tbody.innerHTML = "";
+
+    const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+    let daysDone = 0;
+    let cardsDone = 0;
+    let cardsTotal = 0;
+
+    days.forEach((d, idx) => {
+      const required = Number(d.required || 0);
+      const completed = Number(d.completed || 0);
+
+      cardsDone += completed;
+      cardsTotal += required;
+      if (required > 0 && completed >= required) daysDone++;
+
+      const pct = required > 0 ? Math.min(100, Math.round((completed/required)*100)) : 0;
+
+      const tr = document.createElement("tr");
+
+      const status =
+        required === 0 ? `<span class="pill warn">Optional</span>` :
+        (completed >= required) ? `<span class="pill ok">Completed</span>` :
+        `<span class="pill warn">In progress</span>`;
+
+      tr.innerHTML = `
+        <td><strong>${dayNames[idx] || "Day"}</strong><div class="small2 muted">${d.date || ""}</div></td>
+        <td>${required}</td>
+        <td>${completed}</td>
+        <td>
+          <div class="bar"><div style="width:${pct}%"></div></div>
+          <div class="small2 muted" style="margin-top:6px">${pct}%</div>
+        </td>
+        <td>${status}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById("emptyState").style.display = "none";
+    document.getElementById("tableWrap").style.display = "block";
+    setSummary(daysDone, 7, cardsDone, cardsTotal);
+  }
+
+  async function load(){
+    document.getElementById("weekLabel").textContent = `Week: ${fmtWeekRange(weekStart)}`;
+    setStatus("Loading weekly progress…");
+
     try {
-      const res = await fetch(`${API_BASE}/api/parent/progress`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        },
-        cache: "no-store"
-      });
+      const data = await fetchParentProgress(isoDate(weekStart));
 
-      const text = await res.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
-
-      if (!res.ok) {
-        statusEl.textContent = `Failed (${res.status}). Check permissions / logs.`;
-        if (isDebug()) {
-          debugCard.style.display = "";
-          debugOut.textContent = JSON.stringify(data, null, 2);
-        }
+      // If backend not implemented yet, it likely returns { ok:true, message:"..." }
+      // We only render table if it provides a "days" array.
+      if (!data || !Array.isArray(data.days)) {
+        // Still show “API live” message if present
+        const msg = data && data.message ? data.message : "No progress data yet";
+        setStatus(msg);
+        renderEmpty();
         return;
       }
 
-      // Success
-      statusEl.textContent = "Loaded ✓";
-      console.log("Parent progress data:", data);
-
-      // Only show raw response if debug=1
-      if (isDebug()) {
-        debugCard.style.display = "";
-        debugOut.textContent = JSON.stringify(data, null, 2);
+      // Optional boxer info (if you return it later)
+      if (data.boxer && data.boxer.name) {
+        document.getElementById("boxerPill").textContent = `Boxer: ${data.boxer.name}`;
+      } else {
+        document.getElementById("boxerPill").textContent = "Boxer: (linked to parent account)";
       }
 
-      // Show the proper UI placeholder (we build this next)
-      uiCard.style.display = "";
+      setStatus("Loaded ✓");
+      renderTable(data.days);
 
-    } catch (err) {
-      console.error(err);
-      statusEl.textContent = "Network error. Check API URL and your connection.";
+    } catch (e) {
+      console.error(e);
+      setStatus("Failed to load progress (check console).");
+      renderEmpty();
     }
   }
 
-  loadParentProgress();
+  document.getElementById("prevWeek").onclick = () => {
+    weekStart = addDays(weekStart, -7);
+    load();
+  };
+  document.getElementById("nextWeek").onclick = () => {
+    weekStart = addDays(weekStart, 7);
+    load();
+  };
+
+  load();
 </script>
+
 </body>
-</html>
+</htm
