@@ -71,11 +71,6 @@ function authHeadersJson() {
   };
 }
 
-function getBoxerIdFromSettings() {
-  const s = loadSettings();
-  return (s.boxer_id || s.boxerId || "").trim();
-}
-
 // Call your Lambda route to write to DB
 async function postCardComplete({ boxer_id, card_id, is_done, log_date }) {
   const res = await fetch(`${API_BASE}/boxer/card-complete`, {
@@ -253,10 +248,15 @@ function renderDay(plan, cards, dayInWeek, date){
       const currentlyDone = btn.textContent.includes("Completed");
       const nextDone = !currentlyDone;
 
-      // Must have boxer_id saved in settings
-      const boxer_id = getBoxerIdFromSettings();
+      // ✅ boxer_id is stored in localStorage settings via /assets/app.js helpers
+      const boxer_id = (typeof getBoxerId === "function") ? getBoxerId() : "";
       if (!boxer_id) {
-        alert("Missing boxer_id in settings. Please save boxer_id in boxer settings first.");
+        alert(
+          "Missing boxer_id in settings.\n\n" +
+          "It is stored in localStorage under key: boxxcel_settings_v1\n" +
+          "field: boxer_id\n\n" +
+          "We can add a small settings/admin page to set it."
+        );
         return;
       }
 
@@ -271,7 +271,7 @@ function renderDay(plan, cards, dayInWeek, date){
           log_date: date,
         });
 
-        // 2) only after success, update local cache + re-render
+        // 2) after success, update local cache + re-render
         setCardCompleteLocal(date, cardId, nextDone);
         await load();
 

@@ -14,6 +14,25 @@
   <div class="container">
     <div data-nav></div>
 
+    <!-- Boxer ID (NEW) -->
+    <div class="card">
+      <strong>Boxer ID</strong>
+      <div class="small">
+        This links your training completions to the correct boxer in the database.
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input
+          id="boxerId"
+          type="text"
+          placeholder="Paste boxer UUID here"
+          style="min-width:320px;padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;"
+        >
+        <button class="btn" id="saveBoxerId" type="button">Save</button>
+        <span class="small" id="boxerIdSaved"></span>
+      </div>
+    </div>
+
     <!-- Training frequency -->
     <div class="card">
       <strong>Training frequency</strong>
@@ -396,6 +415,11 @@
   async function renderStats(){
     const s = loadSettings();
 
+    // Autofill Boxer ID (NEW)
+    if (s.boxer_id && document.getElementById("boxerId")) {
+      document.getElementById("boxerId").value = s.boxer_id;
+    }
+
     const freq = s.frequency === 6 ? 6 : 5;
     document.getElementById("freq").value = String(freq);
 
@@ -419,6 +443,27 @@
     await renderTodayFocus();
     await renderWeekStrip();
   }
+
+  // Save Boxer ID (NEW)
+  document.getElementById("saveBoxerId").onclick = async () => {
+    const val = (document.getElementById("boxerId").value || "").trim();
+    if (!val) return;
+
+    // super light UUID check (optional)
+    const looksUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    if (!looksUuid) {
+      alert("That doesn't look like a valid boxer ID (UUID). Please paste the full ID.");
+      return;
+    }
+
+    const s = loadSettings();
+    s.boxer_id = val;
+    saveSettings(s);
+
+    document.getElementById("boxerIdSaved").textContent = "Saved ✓";
+    setTimeout(() => document.getElementById("boxerIdSaved").textContent = "", 1500);
+    await renderStats();
+  };
 
   document.getElementById("saveFreq").onclick = async () => {
     const s = loadSettings();

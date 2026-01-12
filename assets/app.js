@@ -47,23 +47,48 @@ function renderNav(){
   const el = document.querySelector("[data-nav]");
   if(!el) return;
 
- el.innerHTML = `
-  <div class="nav">
-    <a href="/boxer/index.html">Dashboard</a>
-    <a href="/boxer/training.html">Training</a>
-    <a href="/boxer/weight.html">Weight</a>
-    <a href="/boxer/profile.html">Profile</a>
+  el.innerHTML = `
+    <div class="nav">
+      <a href="/boxer/index.html">Dashboard</a>
+      <a href="/boxer/training.html">Training</a>
+      <a href="/boxer/weight.html">Weight</a>
+      <a href="/boxer/profile.html">Profile</a>
 
-    <hr />
+      <hr />
 
-    <a href="/parent/training.html">Parent – Training</a>
-    <a href="/parent/progress.html">Parent – Progress</a>
-  </div>
-`;
+      <a href="/parent/training.html">Parent – Training</a>
+      <a href="/parent/progress.html">Parent – Progress</a>
+    </div>
+  `;
 
   document.querySelectorAll(".nav a").forEach(a=>{
     if(window.location.pathname.endsWith(a.getAttribute("href"))){
       a.classList.add("active");
     }
   });
+}
+
+// -----------------------------
+// Settings helpers (global)
+// -----------------------------
+const SETTINGS_KEY = "boxxcel_settings_v1";
+
+function getSettings(){
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function setSettings(next){
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+}
+
+function getBoxerId(){
+  const s = getSettings();
+  return (s.boxer_id || "").trim();
+}
+
+function setBoxerId(id){
+  const s = getSettings();
+  s.boxer_id = String(id || "").trim();
+  setSettings(s);
 }
