@@ -26,6 +26,9 @@
         <button class="btn" id="prevWeekBtn" type="button">◀ Previous</button>
         <div class="small" id="weekLabel" style="white-space:nowrap;"></div>
         <button class="btn" id="nextWeekBtn" type="button">Next ▶</button>
+
+        <!-- optional manual refresh -->
+        <button class="btn secondary" id="refreshBtn" type="button" title="Refresh now">⟳</button>
       </div>
     </div>
 
@@ -76,6 +79,11 @@
   // ✅ IMPORTANT: Correct API base (5l4, not 514)
   const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
 
+  // Auto-refresh settings
+  const AUTO_REFRESH_MS = 10_000; // 10 seconds
+  let refreshTimer = null;
+  let isLoading = false;
+
   // ---------- date helpers ----------
   function isoDate(d){
     const x = new Date(d);
@@ -103,9 +111,10 @@
   }
 
   async function fetchParentProgress(){
-    const token = localStorage.getItem("access_token");
+    // ✅ Use id_token (matches your other API calls and common Cognito authorizer setups)
+    const token = localStorage.getItem("id_token");
     if (!token) {
-      document.getElementById("statusText").textContent = "No access token found — please login again.";
+      document.getElementById("statusText").textContent = "No id token found — please login again.";
       return null;
     }
 
@@ -159,22 +168,11 @@
 
     sel.onchange = () => {
       selectedBoxerId = sel.value;
-      load();
+      load({ force: true });
     };
   }
 
   function renderDashboard(data){
-    // Expected shape from API:
-    // {
-    //   ok: true,
-    //   week_start: "YYYY-MM-DD",
-    //   week_end: "YYYY-MM-DD",
-    //   boxers: [{ boxer_id, display_name }],
-    //   selected_boxer_id: "...",
-    //   summary: { days_completed, total_days, cards_completed, total_cards, completion_pct },
-    //   detail: { ...optional extra info... }
-    // }
-
     document.getElementById("statusText").textContent = "Loaded ✓";
 
     fillBoxerDropdown(data.boxers || []);
@@ -208,7 +206,10 @@
     document.getElementById("apiNote").textContent = "";
   }
 
-  async function load(){
+  async function load({ force = false } = {}){
+    if (isLoading && !force) return;
+    isLoading = true;
+
     setWeekLabel();
     document.getElementById("statusText").textContent = "Loading…";
 
@@ -216,25 +217,49 @@
       const data = await fetchParentProgress();
       if (!data) return;
       renderDashboard(data);
+
+      const now = new Date();
+      document.getElementById("apiNote").textContent = `Auto-refresh: ${AUTO_REFRESH_MS/1000}s • Last: ${now.toLocaleTimeString()}`;
       console.log("Parent progress data:", data);
     } catch (err) {
       console.error(err);
       document.getElementById("statusText").textContent = "Failed to load progress (check console).";
       document.getElementById("apiNote").textContent = String(err.message || err);
+    } finally {
+      isLoading = false;
     }
+  }
+
+  function startAutoRefresh(){
+    stopAutoRefresh();
+    refreshTimer = setInterval(() => {
+      // only refresh while tab is visible
+      if (!document.hidden) load();
+    }, AUTO_REFRESH_MS);
+  }
+  function stopAutoRefresh(){
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
   }
 
   document.getElementById("prevWeekBtn").onclick = () => {
     weekStart.setDate(weekStart.getDate() - 7);
-    load();
+    load({ force: true });
   };
   document.getElementById("nextWeekBtn").onclick = () => {
     weekStart.setDate(weekStart.getDate() + 7);
-    load();
+    load({ force: true });
   };
+  document.getElementById("refreshBtn").onclick = () => load({ force: true });
+
+  // Refresh when tab becomes active again (useful on mobile)
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) load();
+  });
 
   // Start
-  load();
+  load({ force: true });
+  startAutoRefresh();
 </script>
 </body>
 </html>
