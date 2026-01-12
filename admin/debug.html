@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>boxXcel — Admin Debug</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+
+<script src="/auth/guard.js"></script>
+
+<div class="shell">
+  <div class="topbar" data-topbar></div>
+
+  <div class="container">
+    <div data-nav></div>
+
+    <div class="card">
+      <h2 style="margin:0;">Admin — Debug</h2>
+      <div class="small" id="statusText">Loading…</div>
+      <div class="small" id="accessText" style="margin-top:6px;"></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:16px; margin-top:16px;">
+      <!-- Auth panel -->
+      <div class="card">
+        <div class="small"><strong>Auth</strong></div>
+        <div class="small" id="authInfo" style="margin-top:10px;">—</div>
+
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn secondary" id="btnShowToken" type="button">Show token claims</button>
+          <button class="btn secondary" id="btnCopySub" type="button">Copy sub</button>
+          <button class="btn secondary" id="btnCopyEmail" type="button">Copy email</button>
+        </div>
+
+        <div class="small" id="tokenClaims" style="margin-top:12px; white-space:pre-wrap;"></div>
+      </div>
+
+      <!-- Config panel -->
+      <div class="card">
+        <div class="small"><strong>Config</strong></div>
+
+        <div class="small" style="margin-top:10px;">API Base</div>
+        <input class="input" id="apiBase" style="width:100%;" />
+
+        <div class="small" style="margin-top:10px;">Week start (Monday)</div>
+        <input class="input" id="weekStart" style="width:100%;" placeholder="YYYY-MM-DD" />
+
+        <div class="small" style="margin-top:10px;">Boxer</div>
+        <select class="input" id="boxerSelect" style="width:100%;"></select>
+
+        <div class="small" style="margin-top:10px;">Or manually enter Boxer ID</div>
+        <input class="input" id="boxerIdManual" style="width:100%;" placeholder="uuid..." />
+
+        <div class="small" style="margin-top:10px;">Card ID (for write test)</div>
+        <input class="input" id="cardId" style="width:100%;" placeholder="e.g. skip-001" />
+
+        <div class="small" style="margin-top:10px;">Log date (for write test)</div>
+        <input class="input" id="logDate" style="width:100%;" placeholder="YYYY-MM-DD" />
+
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn" id="btnLoadProgress" type="button">Load Parent Progress</button>
+          <button class="btn" id="btnDbTest" type="button">DB Test</button>
+          <button class="btn" id="btnWriteTest" type="button">Write Test Completion</button>
+        </div>
+
+        <div class="small" style="margin-top:12px;" id="hintText"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="small"><strong>Results</strong></div>
+      <div class="small" id="results" style="margin-top:10px; white-space:pre-wrap;">—</div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="small"><strong>Quick sanity</strong></div>
+      <div class="small" id="sanity" style="margin-top:10px; white-space:pre-wrap;">—</div>
+    </div>
+
+    <div class="footer">
+      boxXcel — Admin debug page (restricted).
+    </div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  renderTopbar("boxXcel — Admin Debug");
+  renderNav();
+
+  // =========================
+  // ACCESS CONTROL (email allowlist)
+  // =========================
+  const ALLOWED_EMAILS = [
+    "gsdhanjal@aol.com",
+    // Later add more emails here:
+    // "someone@boxxcel.com",
+  ];
+
+  // ✅ Your API base
+  const DEFAULT_API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+
+  function decodeJwtPayload(token) {
+    const part = token.split(".")[1];
+    const normalized = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "===".slice((normalized.length + 3) % 4);
+    return JSON.parse(atob(padded));
+  }
+
+  function getIdToken() {
+    return localStorage.getItem("id_token") || "";
+  }
+
+  function getClaims() {
+    try {
+      const t = getIdToken();
+      if (!t) return {};
+      return decodeJwtPayload(t) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function esc(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function todayISO(){
+    const d = new Date();
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0,10);
+  }
+
+  function startOfWeekMonday(d){
+    const x = new Date(d);
+    const day = (x.getDay() + 6) % 7; // Mon=0 ... Sun=6
+    x.setDate(x.getDate() - day);
+    x.setHours(0,0,0,0);
+    const off = x.getTimezoneOffset();
+    const local = new Date(x.getTime() - off * 60000);
+    return local.toISOString().slice(0,10);
+  }
+
+  function apiBase() {
+    return document.getElementById("apiBase").value.trim();
+  }
+
+  function authHeadersJson() {
+    const t = getIdToken();
+    return {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + t,
+    };
+  }
+
+  function setResults(obj) {
+    document.getElementById("results").textContent =
+      typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  }
+
+  function setSanity(obj) {
+    document.getElementById("sanity").textContent =
+      typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  }
+
+  function selectedBoxerId() {
+    const manual = document.getElementById("boxerIdManual").value.trim();
+    if (manual) return manual;
+
+    const sel = document.getElementById("boxerSelect");
+    return sel.value || "";
+  }
+
+  function setStatus(text) {
+    document.getElementById("statusText").textContent = text;
+  }
+
+  async function safeFetchJson(url, options) {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+    return data;
+  }
+
+  // =========================
+  // API calls
+  // =========================
+  async function callDbTest() {
+    // If you don't have /db-test, you can remove this button or change route.
+    const url = apiBase() + "/db-test";
+    return await safeFetchJson(url, { method: "GET", headers: authHeadersJson(), cache: "no-store" });
+  }
+
+  async function loadParentProgress() {
+    const week_start = document.getElementById("weekStart").value.trim();
+    const boxer_id = selectedBoxerId();
+
+    const qs = new URLSearchParams();
+    if (week_start) qs.set("week_start", week_start);
+    if (boxer_id) qs.set("boxer_id", boxer_id);
+
+    const url = apiBase() + "/api/parent/progress?" + qs.toString();
+    return await safeFetchJson(url, { method: "GET", headers: authHeadersJson(), cache: "no-store" });
+  }
+
+  async function writeTestCompletion() {
+    const boxer_id = selectedBoxerId();
+    if (!boxer_id) throw new Error("Missing boxer_id (select from dropdown or paste into manual boxer id).");
+
+    const card_id = document.getElementById("cardId").value.trim() || "debug-test-001";
+    const log_date = document.getElementById("logDate").value.trim() || todayISO();
+
+    const body = { boxer_id, card_id, is_done: true, log_date };
+
+    const url = apiBase() + "/boxer/card-complete";
+    return await safeFetchJson(url, { method: "POST", headers: authHeadersJson(), body: JSON.stringify(body), cache: "no-store" });
+  }
+
+  function fillBoxers(boxers) {
+    const sel = document.getElementById("boxerSelect");
+    sel.innerHTML = "";
+
+    if (!boxers || !boxers.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No boxers found";
+      sel.appendChild(opt);
+      return;
+    }
+
+    for (const b of boxers) {
+      const opt = document.createElement("option");
+      opt.value = b.boxer_id;
+      opt.textContent = (b.display_name || b.boxer_id);
+      sel.appendChild(opt);
+    }
+  }
+
+  // =========================
+  // Boot / Access control
+  // =========================
+  (function boot() {
+    // Fill defaults
+    document.getElementById("apiBase").value = DEFAULT_API_BASE;
+    document.getElementById("weekStart").value = startOfWeekMonday(new Date());
+    document.getElementById("logDate").value = todayISO();
+
+    const claims = getClaims();
+    const email = (claims.email || "").toLowerCase();
+    const sub = claims.sub || "";
+
+    document.getElementById("authInfo").innerHTML =
+      `<div><strong>email:</strong> ${esc(email || "(none)")}</div>` +
+      `<div><strong>sub:</strong> ${esc(sub || "(none)")}</div>` +
+      `<div><strong>token:</strong> ${getIdToken() ? "present" : "missing"}</div>`;
+
+    const allowed = ALLOWED_EMAILS.map(x => x.toLowerCase()).includes(email);
+    if (!allowed) {
+      setStatus("Access denied");
+      document.getElementById("accessText").textContent =
+        "This page is restricted. Your email is not allowlisted.";
+      setResults({ ok: false, error: "Access denied", email });
+      document.getElementById("hintText").textContent =
+        "If this is you, add your email to ALLOWED_EMAILS in admin/debug.html.";
+      // Disable buttons
+      ["btnLoadProgress","btnDbTest","btnWriteTest"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = true;
+      });
+      return;
+    }
+
+    setStatus("Ready ✓");
+    document.getElementById("accessText").textContent =
+      "Access OK (allowlisted).";
+
+    document.getElementById("btnShowToken").onclick = () => {
+      document.getElementById("tokenClaims").textContent =
+        JSON.stringify(claims, null, 2);
+    };
+    document.getElementById("btnCopySub").onclick = async () => {
+      try { await navigator.clipboard.writeText(sub); } catch {}
+      document.getElementById("hintText").textContent = "Copied sub to clipboard.";
+    };
+    document.getElementById("btnCopyEmail").onclick = async () => {
+      try { await navigator.clipboard.writeText(email); } catch {}
+      document.getElementById("hintText").textContent = "Copied email to clipboard.";
+    };
+
+    document.getElementById("btnLoadProgress").onclick = async () => {
+      setStatus("Loading parent progress…");
+      setResults("Loading…");
+      try {
+        const data = await loadParentProgress();
+        setResults(data);
+
+        // Fill boxers dropdown from response
+        fillBoxers(data.boxers || []);
+        // Set sanity summary
+        setSanity({
+          week_start: data.week_start,
+          week_end: data.week_end,
+          selected_boxer_id: data.selected_boxer_id,
+          summary: data.summary,
+        });
+
+        setStatus("Parent progress loaded ✓");
+      } catch (e) {
+        setStatus("Failed");
+        setResults(String(e.message || e));
+      }
+    };
+
+    document.getElementById("btnDbTest").onclick = async () => {
+      setStatus("DB test…");
+      setResults("Loading…");
+      try {
+        const data = await callDbTest();
+        setResults(data);
+        setStatus("DB test OK ✓");
+      } catch (e) {
+        setStatus("DB test failed");
+        setResults(String(e.message || e));
+      }
+    };
+
+    document.getElementById("btnWriteTest").onclick = async () => {
+      setStatus("Writing test completion…");
+      setResults("Loading…");
+      try {
+        const data = await writeTestCompletion();
+        setResults(data);
+        setStatus("Write test OK ✓");
+      } catch (e) {
+        setStatus("Write failed");
+        setResults(String(e.message || e));
+      }
+    };
+
+    // Helpful hint
+    document.getElementById("hintText").textContent =
+      "Tip: Click 'Load Parent Progress' first to populate boxers dropdown.";
+  })();
+</script>
+
+</body>
+</html>
