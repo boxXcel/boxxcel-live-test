@@ -71,15 +71,15 @@ function renderNav(){
 // -----------------------------
 // Settings helpers (global)
 // -----------------------------
-const SETTINGS_KEY = "boxxcel_settings_v1";
+const SETTINGS_STORAGE_KEY = "boxxcel_settings_v1";
 
 function getSettings(){
-  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+  try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}"); }
   catch { return {}; }
 }
 
 function setSettings(next){
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next || {}));
 }
 
 function getBoxerId(){
@@ -92,3 +92,4 @@ function setBoxerId(id){
   s.boxer_id = String(id || "").trim();
   setSettings(s);
 }
+
