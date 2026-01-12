@@ -59,6 +59,39 @@ function planApiUrlForWeek(week) {
   return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
 }
 
+function getIdToken() {
+  return localStorage.getItem("id_token") || "";
+}
+
+function authHeadersJson() {
+  const t = getIdToken();
+  return {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + t,
+  };
+}
+
+function getBoxerIdFromSettings() {
+  const s = loadSettings();
+  return (s.boxer_id || s.boxerId || "").trim();
+}
+
+// Call your Lambda route to write to DB
+async function postCardComplete({ boxer_id, card_id, is_done, log_date }) {
+  const res = await fetch(`${API_BASE}/boxer/card-complete`, {
+    method: "POST",
+    headers: authHeadersJson(),
+    body: JSON.stringify({ boxer_id, card_id, is_done, log_date }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`card-complete failed (${res.status}): ${text}`);
+  }
+
+  try { return JSON.parse(text); } catch { return { ok: true, raw: text }; }
+}
+
 /* ============================================================
    UTILITIES
 ============================================================ */
@@ -112,7 +145,7 @@ function getWeekAndDay(dayNumber){
 }
 
 /* ============================================================
-   COMPLETION TRACKING
+   COMPLETION TRACKING (local cache)
 ============================================================ */
 function getCompletedSetFor(date){
   const all = loadCompletions();
@@ -120,7 +153,7 @@ function getCompletedSetFor(date){
   return new Set(d.cards || []);
 }
 
-function setCardComplete(date, id, done){
+function setCardCompleteLocal(date, id, done){
   const all = loadCompletions();
   const d = all[date] || { cards: [], required: [] };
   const set = new Set(d.cards || []);
@@ -216,9 +249,38 @@ function renderDay(plan, cards, dayInWeek, date){
 
   document.querySelectorAll("[data-id]").forEach(btn => {
     btn.onclick = async () => {
-      const id = btn.dataset.id;
-      setCardComplete(date, id, !btn.textContent.includes("Completed"));
-      await load();
+      const cardId = btn.dataset.id;
+      const currentlyDone = btn.textContent.includes("Completed");
+      const nextDone = !currentlyDone;
+
+      // Must have boxer_id saved in settings
+      const boxer_id = getBoxerIdFromSettings();
+      if (!boxer_id) {
+        alert("Missing boxer_id in settings. Please save boxer_id in boxer settings first.");
+        return;
+      }
+
+      btn.disabled = true;
+
+      try {
+        // 1) write to DB via API
+        await postCardComplete({
+          boxer_id,
+          card_id: cardId,
+          is_done: nextDone,
+          log_date: date,
+        });
+
+        // 2) only after success, update local cache + re-render
+        setCardCompleteLocal(date, cardId, nextDone);
+        await load();
+
+      } catch (e) {
+        console.error(e);
+        alert("Failed to save completion to server. Check console / CloudWatch logs.");
+      } finally {
+        btn.disabled = false;
+      }
     };
   });
 }
