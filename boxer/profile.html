@@ -210,14 +210,44 @@
   };
 
   document.getElementById("saveBtn").onclick = async () => {
-    const saveResult = document.getElementById("saveResult");
-    saveResult.textContent = "";
-    const boxer_id = getBoxerId();
+  const saveResult = document.getElementById("saveResult");
+  saveResult.textContent = "";
 
-    if (!boxer_id){
-      alert("Missing boxer_id in settings. We must set boxer_id first.");
-      return;
-    }
+  // ✅ ALWAYS read boxer_id from the visible input first
+  const boxer_id = (document.getElementById("boxerId").value || "").trim();
+
+  if (!boxer_id){
+    alert("Missing boxer_id. Paste it into the boxer_id box first.");
+    return;
+  }
+
+  // ✅ Also persist it into settings so other pages can use it
+  setBoxerId(boxer_id);
+
+  const payload = { boxer_id, ...readForm() };
+
+  // Clean empty strings -> null (so ::date cast doesn’t break)
+  for (const k of Object.keys(payload)){
+    if (payload[k] === "") payload[k] = null;
+  }
+
+  const btn = document.getElementById("saveBtn");
+  btn.disabled = true;
+
+  try {
+    const data = await apiSaveProfile(payload);
+    saveResult.textContent = "Saved ✓";
+    console.log("SAVE RESPONSE:", data);
+    await load();
+  } catch (e) {
+    console.error(e);
+    alert("Save failed: " + (e.message || e));
+    saveResult.textContent = "Save failed (see console)";
+  } finally {
+    btn.disabled = false;
+    setTimeout(()=> saveResult.textContent = "", 3000);
+  }
+};
 
     const payload = { boxer_id, ...readForm() };
 
