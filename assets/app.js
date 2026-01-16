@@ -62,34 +62,9 @@ function renderNav(){
   `;
 
   document.querySelectorAll(".nav a").forEach(a=>{
-    if(window.location.pathname.endsWith(a.getAttribute("href"))){
+    const href = a.getAttribute("href");
+    if(window.location.pathname.endsWith(href)){
       a.classList.add("active");
     }
   });
 }
-
-// -----------------------------
-// Settings helpers (global)
-// -----------------------------
-const SETTINGS_STORAGE_KEY = "boxxcel_settings_v1";
-
-function getSettings(){
-  try { return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}"); }
-  catch { return {}; }
-}
-
-function setSettings(next){
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next || {}));
-}
-
-function getBoxerId(){
-  const s = getSettings();
-  return (s.boxer_id || "").trim();
-}
-
-function setBoxerId(id){
-  const s = getSettings();
-  s.boxer_id = String(id || "").trim();
-  setSettings(s);
-}
-

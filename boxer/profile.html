@@ -1,9 +1,10 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>boxXcel — Profile</title>
-  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body>
 <script src="/auth/guard.js"></script>
@@ -15,43 +16,236 @@
     <div data-nav></div>
 
     <div class="card">
-      <strong>Boxer Profile</strong>
-      <div class="small">
-        This information will be stored securely in a later phase.
-      </div>
-
-      <div class="tile-grid">
-        <div class="tile">
-          <strong>Name</strong>
-          <div class="small">—</div>
-        </div>
-        <div class="tile">
-          <strong>Age Group</strong>
-          <div class="small">12–15</div>
-        </div>
-        <div class="tile">
-          <strong>Stance</strong>
-          <div class="small">Orthodox / Southpaw</div>
-        </div>
-        <div class="tile">
-          <strong>Injury Notes</strong>
-          <div class="small">—</div>
-        </div>
-      </div>
-
-      <div class="small">
-        <strong>Safeguarding:</strong> If you feel unsafe or unwell, stop training and inform a parent, guardian, or coach.
+      <h2 style="margin:0;">Boxer Profile</h2>
+      <div class="small" id="statusText" style="margin-top:6px;">Loading…</div>
+      <div class="small" style="margin-top:6px; opacity:.85;">
+        This page saves to the database.
       </div>
     </div>
 
-    <div class="footer">boxXcel — Training and information only</div>
+    <div class="card" style="margin-top:16px;">
+      <div class="small"><strong>Your boxer_id</strong></div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+        <input id="boxerId" class="input" style="min-width:340px;" readonly />
+        <button class="btn secondary" id="copyBoxerId" type="button">Copy</button>
+      </div>
+      <div class="small" style="margin-top:10px; opacity:.85;">
+        If this is blank, we need to add boxer_id into settings.
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:16px;">
+        <div>
+          <div class="small"><strong>First name</strong></div>
+          <input id="firstName" class="input" placeholder="e.g. Gurminder" />
+        </div>
+
+        <div>
+          <div class="small"><strong>Last name</strong></div>
+          <input id="lastName" class="input" placeholder="e.g. Dhanjal" />
+        </div>
+
+        <div>
+          <div class="small"><strong>Date of birth</strong></div>
+          <input id="dob" class="input" type="date" />
+        </div>
+
+        <div>
+          <div class="small"><strong>Club</strong></div>
+          <input id="club" class="input" placeholder="e.g. Boxxcel Gym" />
+        </div>
+
+        <div>
+          <div class="small"><strong>Stance</strong></div>
+          <select id="stance" class="input">
+            <option value="">(select)</option>
+            <option value="orthodox">Orthodox</option>
+            <option value="southpaw">Southpaw</option>
+            <option value="switch">Switch</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="small"><strong>Injury notes</strong></div>
+          <input id="notes" class="input" placeholder="optional" />
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center; margin-top:16px; flex-wrap:wrap;">
+        <button class="btn" id="saveBtn" type="button">Save profile to DB</button>
+        <span class="small" id="saveResult"></span>
+      </div>
+
+      <div class="small" style="margin-top:10px; opacity:.85;">
+        Tip: Open DevTools → Network → Fetch/XHR, then press Save. You will see the POST and the JSON payload.
+      </div>
+    </div>
+
+    <div class="footer">
+      boxXcel — Training support application. Training and information only.
+    </div>
   </div>
 </div>
 
 <script src="/assets/app.js"></script>
+
 <script>
   renderTopbar("boxXcel — Profile");
   renderNav();
+
+  const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+  const SETTINGS_KEY = "boxxcel_settings_v1";
+
+  function loadSettings(){
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+    catch { return {}; }
+  }
+
+  function saveSettings(s){
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  }
+
+  function getAuthToken(){
+    // Use access_token if present (recommended for API Gateway JWT authorizer)
+    // Fallback to id_token if needed.
+    return localStorage.getItem("access_token") || localStorage.getItem("id_token") || "";
+  }
+
+  function authHeadersJson(){
+    const t = getAuthToken();
+    return {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + t
+    };
+  }
+
+  function getBoxerId(){
+    const s = loadSettings();
+    return (s.boxer_id || s.boxerId || "").trim();
+  }
+
+  function setBoxerId(id){
+    const s = loadSettings();
+    s.boxer_id = String(id || "").trim();
+    saveSettings(s);
+  }
+
+  async function apiGetProfile(boxer_id){
+    const url = `${API_BASE}/api/boxer/profile?boxer_id=${encodeURIComponent(boxer_id)}`;
+    const res = await fetch(url, { method:"GET", headers: authHeadersJson(), cache:"no-store" });
+    const text = await res.text();
+    let data = null; try { data = JSON.parse(text); } catch {}
+    if (!res.ok) throw new Error((data && (data.error || data.message)) || text || `HTTP ${res.status}`);
+    return data;
+  }
+
+  async function apiSaveProfile(payload){
+    const url = `${API_BASE}/api/boxer/profile`;
+    const res = await fetch(url, { method:"POST", headers: authHeadersJson(), body: JSON.stringify(payload) });
+    const text = await res.text();
+    let data = null; try { data = JSON.parse(text); } catch {}
+    if (!res.ok) throw new Error((data && (data.error || data.message)) || text || `HTTP ${res.status}`);
+    return data;
+  }
+
+  function fillFormFromProfile(p){
+    document.getElementById("firstName").value = p?.first_name || "";
+    document.getElementById("lastName").value  = p?.last_name || "";
+    document.getElementById("dob").value       = p?.dob ? String(p.dob).slice(0,10) : "";
+    document.getElementById("club").value      = p?.club || "";
+    document.getElementById("stance").value    = p?.stance || "";
+    document.getElementById("notes").value     = p?.notes || "";
+  }
+
+  function readForm(){
+    return {
+      first_name: document.getElementById("firstName").value.trim(),
+      last_name:  document.getElementById("lastName").value.trim(),
+      dob:        document.getElementById("dob").value.trim(),
+      club:       document.getElementById("club").value.trim(),
+      stance:     document.getElementById("stance").value.trim(),
+      notes:      document.getElementById("notes").value.trim(),
+    };
+  }
+
+  async function load(){
+    const status = document.getElementById("statusText");
+    const boxerId = getBoxerId();
+    document.getElementById("boxerId").value = boxerId;
+
+    if (!getAuthToken()){
+      status.textContent = "No token found. Please log out and log in again.";
+      return;
+    }
+
+    if (!boxerId){
+      status.textContent = "boxer_id is missing. Add it to settings (we can do this next).";
+      return;
+    }
+
+    status.textContent = "Loaded ✓ (fetching profile from DB…)";
+
+    try {
+      const data = await apiGetProfile(boxerId);
+      // Expect either { ok:true, profile:{...} } or { ...profile fields... }
+      const profile = data.profile || data;
+      fillFormFromProfile(profile);
+      status.textContent = "Loaded ✓";
+    } catch (e) {
+      console.error(e);
+      status.textContent = "Loaded ✓ (no saved profile yet, or GET failed — check console)";
+    }
+  }
+
+  document.getElementById("copyBoxerId").onclick = async () => {
+    const v = document.getElementById("boxerId").value;
+    if (!v) return alert("No boxer_id to copy");
+    try {
+      await navigator.clipboard.writeText(v);
+      alert("Copied boxer_id ✓");
+    } catch {
+      alert("Copy failed (browser blocked it). You can select and copy manually.");
+    }
+  };
+
+  document.getElementById("saveBtn").onclick = async () => {
+    const saveResult = document.getElementById("saveResult");
+    saveResult.textContent = "";
+    const boxer_id = getBoxerId();
+
+    if (!boxer_id){
+      alert("Missing boxer_id in settings. We must set boxer_id first.");
+      return;
+    }
+
+    const payload = { boxer_id, ...readForm() };
+
+    // Clean empty strings -> null (so your ::date cast doesn’t break)
+    for (const k of Object.keys(payload)){
+      if (payload[k] === "") payload[k] = null;
+    }
+
+    const btn = document.getElementById("saveBtn");
+    btn.disabled = true;
+
+    try {
+      const data = await apiSaveProfile(payload);
+      saveResult.textContent = "Saved ✓";
+      console.log("SAVE RESPONSE:", data);
+      // re-load to confirm it reads back
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Save failed: " + (e.message || e));
+      saveResult.textContent = "Save failed (see console)";
+    } finally {
+      btn.disabled = false;
+      setTimeout(()=> saveResult.textContent = "", 3000);
+    }
+  };
+
+  load();
 </script>
 </body>
 </html>
