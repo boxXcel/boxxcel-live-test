@@ -17,67 +17,76 @@
     <div data-nav></div>
 
     <div class="card">
-      <h2 style="margin:0;">Boxer Profile</h2>
-      <div class="small" id="statusText">Loading…</div>
+      <h2>Boxer Profile</h2>
+      <div class="small" id="statusLine">Loading ✓</div>
       <div class="small">This page saves to the database.</div>
     </div>
 
-    <!-- Boxer ID -->
-    <div class="card" style="margin-top:16px;">
-      <div class="small"><strong>Your boxer_id</strong></div>
-      <div class="small" style="margin-bottom:8px;">Tip: this must match the boxer linked to your login.</div>
+    <div class="card">
+      <strong>Your boxer_id</strong>
+      <div class="small">Tip: this must match the boxer linked to your login.</div>
 
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <input id="boxer_id" class="input" style="min-width:360px;" />
+      <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input id="boxerId" type="text"
+          style="flex:1; min-width:260px; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         <button class="btn secondary" id="copyBoxerId" type="button">Copy</button>
+      </div>
+
+      <div class="small" style="margin-top:8px;">
+        If this is blank, we need to add boxer_id into settings.
       </div>
     </div>
 
-    <!-- Profile form -->
-    <div class="card" style="margin-top:16px;">
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+    <div class="card">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
         <div>
-          <div class="small"><strong>First name</strong></div>
-          <input id="first_name" class="input" />
+          <label class="small"><strong>First name</strong></label>
+          <input id="firstName" type="text"
+            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
 
         <div>
-          <div class="small"><strong>Last name</strong></div>
-          <input id="last_name" class="input" />
+          <label class="small"><strong>Last name</strong></label>
+          <input id="lastName" type="text"
+            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
 
         <div>
-          <div class="small"><strong>Date of birth (UK)</strong></div>
-          <input id="dob" class="input" placeholder="DD/MM/YYYY" />
-          <div class="small" style="opacity:.8;">Example: 24/02/2011</div>
+          <label class="small"><strong>Date of birth (UK)</strong></label>
+          <input id="dobUk" type="text" placeholder="dd/mm/yyyy"
+            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <div class="small" style="margin-top:6px;">Example: 24/02/2011</div>
         </div>
 
         <div>
-          <div class="small"><strong>Club</strong></div>
-          <input id="club" class="input" />
+          <label class="small"><strong>Club</strong></label>
+          <input id="club" type="text"
+            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
 
         <div>
-          <div class="small"><strong>Stance</strong></div>
-          <select id="stance" class="input">
-            <option value="">(select)</option>
+          <label class="small"><strong>Stance</strong></label>
+          <select id="stance"
+            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+            <option value="">—</option>
             <option value="orthodox">Orthodox</option>
             <option value="southpaw">Southpaw</option>
           </select>
         </div>
 
         <div>
-          <div class="small"><strong>Injury notes</strong></div>
-          <input id="notes" class="input" placeholder="optional" />
+          <label class="small"><strong>Injury notes</strong></label>
+          <input id="notes" type="text" placeholder="optional"
+            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
       </div>
 
-      <div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <div style="margin-top:18px;">
         <button class="btn" id="saveBtn" type="button">Save profile to DB</button>
-        <span class="small" id="saveMsg"></span>
+        <span class="small" id="savedMsg" style="margin-left:10px;"></span>
       </div>
 
-      <div class="small" style="margin-top:10px; opacity:.85;">
+      <div class="small" style="margin-top:10px;">
         Tip: Open DevTools → Network → Fetch/XHR, then press Save. You will see the POST and the JSON payload.
       </div>
     </div>
@@ -91,11 +100,8 @@
   renderTopbar("boxXcel — Profile");
   renderNav();
 
-  const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
-  const PROFILE_URL = API_BASE + "/api/boxer/profile";
-
-  // If you already store boxer_id in local settings, we’ll read it:
   const SETTINGS_KEY = "boxxcel_settings_v1";
+  const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
 
   function loadSettings(){
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
@@ -105,193 +111,159 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
 
-  function getIdToken(){
-    return localStorage.getItem("id_token") || "";
+  function getAuthToken(){
+    // Prefer access_token for API Gateway JWT authorizer; fallback to id_token.
+    return localStorage.getItem("access_token") || localStorage.getItem("id_token") || "";
   }
 
-  function ukDateToIso(ukDate) {
-    if (!ukDate) return null;
-    const parts = ukDate.split("/");
-    if (parts.length !== 3) return null;
-    const [dd, mm, yyyy] = parts.map(x => (x || "").trim());
-    if (!dd || !mm || !yyyy) return null;
-    if (yyyy.length !== 4) return null;
-    // basic validation
-    const d = Number(dd), m = Number(mm), y = Number(yyyy);
-    if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) return null;
-    if (d < 1 || d > 31 || m < 1 || m > 12) return null;
-
-    // pad
-    const dd2 = String(d).padStart(2,"0");
-    const mm2 = String(m).padStart(2,"0");
-    return `${yyyy}-${mm2}-${dd2}`;
-  }
-
-  function isoToUk(iso) {
-    if (!iso) return "";
-    const parts = iso.split("-");
-    if (parts.length !== 3) return "";
-    const [yyyy, mm, dd] = parts;
-    if (!yyyy || !mm || !dd) return "";
-    return `${dd}/${mm}/${yyyy}`;
-  }
-
-  function setStatus(msg){
-    document.getElementById("statusText").textContent = msg;
-  }
-
-  async function apiGetProfile(boxerId){
-    const token = getIdToken();
-    if (!token) throw new Error("Missing id_token (please login again).");
-
-    const url = PROFILE_URL + "?boxer_id=" + encodeURIComponent(boxerId);
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { "Authorization": "Bearer " + token },
-      cache: "no-store"
-    });
-
-    const text = await res.text();
-    let data = null;
-    try { data = JSON.parse(text); } catch {}
-
-    if (!res.ok) {
-      // if profile doesn't exist yet, we don't hard-fail, we just show message
-      throw new Error((data && data.error) ? data.error : (data && data.message) ? data.message : text || ("HTTP " + res.status));
-    }
-
-    return data;
-  }
-
-  async function apiSaveProfile(payload){
-    const token = getIdToken();
-    if (!token) throw new Error("Missing id_token (please login again).");
-
-    const res = await fetch(PROFILE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + token
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const text = await res.text();
-    let data = null;
-    try { data = JSON.parse(text); } catch {}
-
-    if (!res.ok) {
-      const msg = (data && (data.error || data.message)) ? (data.error || data.message) : text || ("HTTP " + res.status);
-      throw new Error(msg);
-    }
-
-    return data;
-  }
-
-  function readForm(){
-    const boxer_id = (document.getElementById("boxer_id").value || "").trim();
-    const dobUk = (document.getElementById("dob").value || "").trim();
-    const dobIso = ukDateToIso(dobUk);
-
-    if (!boxer_id) throw new Error("Missing boxer_id");
-    if (dobUk && !dobIso) throw new Error("DOB must be in DD/MM/YYYY format");
-
+  function authHeadersJson(){
+    const t = getAuthToken();
     return {
-      boxer_id,
-      first_name: (document.getElementById("first_name").value || "").trim() || null,
-      last_name: (document.getElementById("last_name").value || "").trim() || null,
-      dob: dobIso, // IMPORTANT: send ISO to API/DB
-      club: (document.getElementById("club").value || "").trim() || null,
-      stance: (document.getElementById("stance").value || "").trim() || null,
-      notes: (document.getElementById("notes").value || "").trim() || null
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + t
     };
   }
 
-  function fillFormFromProfile(p){
-    if (!p) return;
-    document.getElementById("first_name").value = p.first_name || "";
-    document.getElementById("last_name").value  = p.last_name || "";
-    document.getElementById("dob").value        = isoToUk(p.dob || "");
-    document.getElementById("club").value       = p.club || "";
-    document.getElementById("stance").value     = p.stance || "";
-    document.getElementById("notes").value      = p.notes || "";
+  function parseUkDobToIso(uk){
+    const s = String(uk || "").trim();
+    if(!s) return null;
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(!m) throw new Error("DOB must be dd/mm/yyyy");
+    const dd = m[1], mm = m[2], yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function isoToUk(iso){
+    const s = String(iso || "").trim();
+    if(!s) return "";
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(!m) return "";
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  function getBoxerId(){
+    const settings = loadSettings();
+    const fromSettings = (settings.boxer_id || settings.boxerId || "").trim();
+    const fromInput = (document.getElementById("boxerId").value || "").trim();
+    return fromInput || fromSettings;
+  }
+
+  async function apiGetProfile(boxer_id){
+    const url = `${API_BASE}/api/boxer/profile?boxer_id=${encodeURIComponent(boxer_id)}`;
+    const r = await fetch(url, { headers: authHeadersJson(), cache:"no-store" });
+    const t = await r.text();
+    let j; try { j = JSON.parse(t); } catch { j = { raw:t }; }
+    if(!r.ok) throw new Error(j.error || j.message || ("GET failed: " + r.status));
+    return j;
+  }
+
+  async function apiSaveProfile(payload){
+    const url = `${API_BASE}/api/boxer/profile`;
+    const r = await fetch(url, {
+      method:"POST",
+      headers: authHeadersJson(),
+      body: JSON.stringify(payload)
+    });
+    const t = await r.text();
+    let j; try { j = JSON.parse(t); } catch { j = { raw:t }; }
+    if(!r.ok) throw new Error(j.error || j.message || ("POST failed: " + r.status));
+    return j;
   }
 
   async function boot(){
-    // Prefer boxer_id from settings if present
+    // Fill boxer_id from settings if present
     const settings = loadSettings();
-    const existingBoxerId = (settings.boxer_id || settings.boxerId || "").trim();
+    const boxer_id = (settings.boxer_id || settings.boxerId || "").trim();
+    if(boxer_id) document.getElementById("boxerId").value = boxer_id;
 
-    if (existingBoxerId) {
-      document.getElementById("boxer_id").value = existingBoxerId;
+    // Try load profile only if we have boxer_id
+    if(!boxer_id){
+      document.getElementById("statusLine").textContent =
+        "Loaded ✓ (no saved profile yet — boxer_id missing in settings)";
+      return;
     }
 
-    setStatus("Loaded ✓");
+    try{
+      const res = await apiGetProfile(boxer_id);
+      const p = (res && res.profile) ? res.profile : null;
 
-    // If we have a boxer_id, try GET to load existing profile
-    if (existingBoxerId) {
-      try {
-        const data = await apiGetProfile(existingBoxerId);
-        if (data && data.profile) {
-          fillFormFromProfile(data.profile);
-          setStatus("Loaded ✓ (profile found)");
-        } else {
-          setStatus("Loaded ✓ (no saved profile yet)");
-        }
-      } catch (e) {
-        // Not fatal
-        console.warn("GET profile failed:", e);
-        setStatus("Loaded ✓ (no saved profile yet, or GET failed — check console)");
+      if(!p){
+        document.getElementById("statusLine").textContent = "Loaded ✓ (no saved profile yet)";
+        return;
       }
-    } else {
-      setStatus("Loaded ✓ (enter boxer_id then Save)");
+
+      document.getElementById("statusLine").textContent = "Loaded ✓ (profile found)";
+      document.getElementById("firstName").value = p.first_name || "";
+      document.getElementById("lastName").value  = p.last_name || "";
+      document.getElementById("dobUk").value     = isoToUk(p.dob);
+      document.getElementById("club").value      = p.club || "";
+      document.getElementById("stance").value    = p.stance || "";
+      document.getElementById("notes").value     = p.notes || "";
+
+    }catch(e){
+      console.error("GET profile failed:", e);
+      document.getElementById("statusLine").textContent =
+        "Loaded ✓ (no saved profile yet, or GET failed — check console)";
     }
   }
 
   document.getElementById("copyBoxerId").onclick = async () => {
-    const v = document.getElementById("boxer_id").value || "";
-    try {
+    const v = document.getElementById("boxerId").value || "";
+    if(!v) return;
+    try{
       await navigator.clipboard.writeText(v);
-      alert("Copied ✅");
-    } catch {
-      alert("Could not copy (browser blocked). You can copy manually.");
-    }
+    }catch{}
   };
 
   document.getElementById("saveBtn").onclick = async () => {
-    const msg = document.getElementById("saveMsg");
-    msg.textContent = "";
-
-    let payload;
-    try {
-      payload = readForm();
-    } catch (e) {
-      alert("Save failed: " + (e.message || e));
+    const boxer_id = getBoxerId();
+    if(!boxer_id){
+      alert("Save failed: Missing boxer_id");
       return;
     }
 
-    // Store boxer_id in settings so other pages can use it
+    // Persist boxer_id into settings so Training page can use it too
     const s = loadSettings();
-    s.boxer_id = payload.boxer_id;
+    s.boxer_id = boxer_id;
     saveSettings(s);
 
+    let dobIso = null;
+    try{
+      dobIso = parseUkDobToIso(document.getElementById("dobUk").value);
+    }catch(e){
+      alert("Save failed: " + e.message);
+      return;
+    }
+
+    const payload = {
+      boxer_id,
+      first_name: (document.getElementById("firstName").value || "").trim(),
+      last_name:  (document.getElementById("lastName").value || "").trim(),
+      dob: dobIso ? dobIso : null,              // send ISO to API/DB
+      club: (document.getElementById("club").value || "").trim(),
+      stance: (document.getElementById("stance").value || "").trim(),
+      notes: (document.getElementById("notes").value || "").trim() || null
+    };
+
+    const msg = document.getElementById("savedMsg");
+    msg.textContent = "Saving...";
     document.getElementById("saveBtn").disabled = true;
 
-    try {
-      const data = await apiSaveProfile(payload);
-      console.log("Saved:", data);
+    try{
+      await apiSaveProfile(payload);
       msg.textContent = "Saved ✓";
-      setTimeout(() => msg.textContent = "", 2000);
-      alert("Profile saved successfully ✅");
-    } catch (e) {
-      console.error(e);
-      alert("Save failed: " + (e.message || e));
-    } finally {
+      setTimeout(()=> msg.textContent="", 1500);
+    }catch(e){
+      console.error("POST profile failed:", e);
+      alert("Save failed: " + (e.message || "Unknown error"));
+      msg.textContent = "";
+    }finally{
       document.getElementById("saveBtn").disabled = false;
     }
   };
 
   boot();
 </script>
+
 </body>
 </html>
