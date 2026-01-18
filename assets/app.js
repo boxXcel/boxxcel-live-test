@@ -9,44 +9,49 @@ function decodeJwtPayload(token) {
   return JSON.parse(atob(padded));
 }
 
-function getUserEmail(){
-  try{
+function getUserEmail() {
+  try {
     const t = localStorage.getItem("id_token");
-    if(!t) return "";
+    if (!t) return "";
     return decodeJwtPayload(t).email || "";
-  }catch{
+  } catch {
     return "";
   }
 }
 
-function logout(){
+function logout() {
   localStorage.clear();
   const url =
-    COGNITO_DOMAIN + "/logout" +
-    "?client_id=" + encodeURIComponent(CLIENT_ID) +
-    "&logout_uri=" + encodeURIComponent(LOGOUT_URI);
+    COGNITO_DOMAIN +
+    "/logout" +
+    "?client_id=" +
+    encodeURIComponent(CLIENT_ID) +
+    "&logout_uri=" +
+    encodeURIComponent(LOGOUT_URI);
   window.location.href = url;
 }
 
-function renderTopbar(title){
+function renderTopbar(title) {
   const el = document.querySelector("[data-topbar]");
-  if(!el) return;
+  if (!el) return;
 
   el.innerHTML = `
     <div class="brand">
-      <img src="/logo.png">
+      <img src="/logo.png" alt="boxXcel">
       <div class="title">${title} ${getUserEmail() ? "— " + getUserEmail() : ""}</div>
     </div>
-    <button class="btn secondary" id="logoutBtn">Logout</button>
+    <button class="btn secondary" id="logoutBtn" type="button">Logout</button>
   `;
 
-  document.getElementById("logoutBtn").onclick = logout;
+  const btn = document.getElementById("logoutBtn");
+  if (btn) btn.onclick = logout;
 }
 
-function renderNav(){
+function renderNav() {
   const el = document.querySelector("[data-nav]");
-  if(!el) return;
+  if (!el) return;
 
+  // Side nav (left)
   el.innerHTML = `
     <div class="nav">
       <a href="/boxer/index.html">Dashboard</a>
@@ -61,9 +66,10 @@ function renderNav(){
     </div>
   `;
 
-  document.querySelectorAll(".nav a").forEach(a=>{
-    const href = a.getAttribute("href");
-    if(window.location.pathname.endsWith(href)){
+  // Highlight current
+  document.querySelectorAll(".nav a").forEach(a => {
+    const href = a.getAttribute("href") || "";
+    if (href && window.location.pathname.endsWith(href)) {
       a.classList.add("active");
     }
   });
