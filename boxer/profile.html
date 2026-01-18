@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body>
-
 <script src="/auth/guard.js"></script>
 
 <div class="shell">
@@ -18,7 +17,7 @@
 
     <div class="card">
       <h2>Boxer Profile</h2>
-      <div class="small" id="statusLine">Loading ✓</div>
+      <div class="small" id="statusLine">Loading…</div>
       <div class="small">This page saves to the database.</div>
     </div>
 
@@ -26,48 +25,40 @@
       <strong>Your boxer_id</strong>
       <div class="small">Tip: this must match the boxer linked to your login.</div>
 
-      <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <input id="boxerId" type="text"
-          style="flex:1; min-width:260px; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input id="boxerId" type="text" style="flex:1; min-width:280px; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         <button class="btn secondary" id="copyBoxerId" type="button">Copy</button>
+        <button class="btn" id="saveBoxerId" type="button">Save boxer_id</button>
       </div>
-
-      <div class="small" style="margin-top:8px;">
-        If this is blank, we need to add boxer_id into settings.
-      </div>
+      <div class="small" id="boxerIdSaved" style="margin-top:8px;"></div>
     </div>
 
     <div class="card">
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
         <div>
-          <label class="small"><strong>First name</strong></label>
-          <input id="firstName" type="text"
-            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <label class="small"><strong>First name</strong></label><br/>
+          <input id="firstName" type="text" style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
 
         <div>
-          <label class="small"><strong>Last name</strong></label>
-          <input id="lastName" type="text"
-            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <label class="small"><strong>Last name</strong></label><br/>
+          <input id="lastName" type="text" style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
 
         <div>
-          <label class="small"><strong>Date of birth (UK)</strong></label>
-          <input id="dobUk" type="text" placeholder="dd/mm/yyyy"
-            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
-          <div class="small" style="margin-top:6px;">Example: 24/02/2011</div>
+          <label class="small"><strong>Date of birth (DD/MM/YYYY)</strong></label><br/>
+          <input id="dob" type="text" placeholder="e.g. 14/06/2005" style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <div class="small">UK format. We will convert and store correctly.</div>
         </div>
 
         <div>
-          <label class="small"><strong>Club</strong></label>
-          <input id="club" type="text"
-            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <label class="small"><strong>Club</strong></label><br/>
+          <input id="club" type="text" style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
 
         <div>
-          <label class="small"><strong>Stance</strong></label>
-          <select id="stance"
-            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <label class="small"><strong>Stance</strong></label><br/>
+          <select id="stance" style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
             <option value="">—</option>
             <option value="orthodox">Orthodox</option>
             <option value="southpaw">Southpaw</option>
@@ -75,23 +66,22 @@
         </div>
 
         <div>
-          <label class="small"><strong>Injury notes</strong></label>
-          <input id="notes" type="text" placeholder="optional"
-            style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <label class="small"><strong>Injury notes</strong></label><br/>
+          <input id="notes" type="text" placeholder="optional" style="width:100%; padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
         </div>
       </div>
 
-      <div style="margin-top:18px;">
-        <button class="btn" id="saveBtn" type="button">Save profile to DB</button>
-        <span class="small" id="savedMsg" style="margin-left:10px;"></span>
+      <div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn" id="saveProfile" type="button">Save profile to DB</button>
+        <span class="small" id="saveResult"></span>
       </div>
 
       <div class="small" style="margin-top:10px;">
-        Tip: Open DevTools → Network → Fetch/XHR, then press Save. You will see the POST and the JSON payload.
+        Tip: DevTools → Network → Fetch/XHR, then press Save. You will see the POST and JSON payload.
       </div>
     </div>
 
-    <div class="footer">boxXcel — Training and information only</div>
+    <div class="footer">boxXcel — Training support only</div>
   </div>
 </div>
 
@@ -111,159 +101,137 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
 
-  function getAuthToken(){
-    // Prefer access_token for API Gateway JWT authorizer; fallback to id_token.
-    return localStorage.getItem("access_token") || localStorage.getItem("id_token") || "";
+  function getToken(){
+    // Your other pages used id_token for Authorization
+    return localStorage.getItem("id_token") || "";
   }
 
   function authHeadersJson(){
-    const t = getAuthToken();
     return {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + t
+      "Authorization": "Bearer " + getToken(),
     };
   }
 
-  function parseUkDobToIso(uk){
-    const s = String(uk || "").trim();
-    if(!s) return null;
-    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if(!m) throw new Error("DOB must be dd/mm/yyyy");
-    const dd = m[1], mm = m[2], yyyy = m[3];
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  function isoToUk(iso){
-    const s = String(iso || "").trim();
-    if(!s) return "";
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if(!m) return "";
-    return `${m[3]}/${m[2]}/${m[1]}`;
-  }
-
   function getBoxerId(){
-    const settings = loadSettings();
-    const fromSettings = (settings.boxer_id || settings.boxerId || "").trim();
-    const fromInput = (document.getElementById("boxerId").value || "").trim();
-    return fromInput || fromSettings;
+    const s = loadSettings();
+    return (s.boxer_id || s.boxerId || "").trim();
+  }
+
+  function setBoxerId(id){
+    const s = loadSettings();
+    s.boxer_id = id.trim();
+    saveSettings(s);
   }
 
   async function apiGetProfile(boxer_id){
     const url = `${API_BASE}/api/boxer/profile?boxer_id=${encodeURIComponent(boxer_id)}`;
-    const r = await fetch(url, { headers: authHeadersJson(), cache:"no-store" });
+    const r = await fetch(url, { headers: authHeadersJson(), cache: "no-store" });
     const t = await r.text();
-    let j; try { j = JSON.parse(t); } catch { j = { raw:t }; }
-    if(!r.ok) throw new Error(j.error || j.message || ("GET failed: " + r.status));
-    return j;
+    if(!r.ok) throw new Error(t || ("HTTP " + r.status));
+    return JSON.parse(t);
   }
 
   async function apiSaveProfile(payload){
     const url = `${API_BASE}/api/boxer/profile`;
-    const r = await fetch(url, {
-      method:"POST",
-      headers: authHeadersJson(),
-      body: JSON.stringify(payload)
-    });
+    const r = await fetch(url, { method:"POST", headers: authHeadersJson(), body: JSON.stringify(payload) });
     const t = await r.text();
-    let j; try { j = JSON.parse(t); } catch { j = { raw:t }; }
-    if(!r.ok) throw new Error(j.error || j.message || ("POST failed: " + r.status));
-    return j;
+    if(!r.ok) throw new Error(t || ("HTTP " + r.status));
+    return JSON.parse(t);
+  }
+
+  function fillForm(p){
+    document.getElementById("firstName").value = p?.first_name || "";
+    document.getElementById("lastName").value  = p?.last_name || "";
+    document.getElementById("club").value      = p?.club || "";
+    document.getElementById("stance").value    = p?.stance || "";
+    document.getElementById("notes").value     = p?.notes || "";
+
+    // dob comes back like "2011-06-14" from DB, show as DD/MM/YYYY for UK
+    if (p?.dob) {
+      const s = String(p.dob).slice(0,10);
+      const parts = s.split("-");
+      if (parts.length === 3) {
+        document.getElementById("dob").value = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      } else {
+        document.getElementById("dob").value = "";
+      }
+    } else {
+      document.getElementById("dob").value = "";
+    }
   }
 
   async function boot(){
-    // Fill boxer_id from settings if present
-    const settings = loadSettings();
-    const boxer_id = (settings.boxer_id || settings.boxerId || "").trim();
-    if(boxer_id) document.getElementById("boxerId").value = boxer_id;
+    const boxer_id = getBoxerId();
+    document.getElementById("boxerId").value = boxer_id;
 
-    // Try load profile only if we have boxer_id
     if(!boxer_id){
-      document.getElementById("statusLine").textContent =
-        "Loaded ✓ (no saved profile yet — boxer_id missing in settings)";
+      document.getElementById("statusLine").textContent = "Please save your boxer_id first.";
       return;
     }
 
     try{
       const res = await apiGetProfile(boxer_id);
-      const p = (res && res.profile) ? res.profile : null;
-
-      if(!p){
-        document.getElementById("statusLine").textContent = "Loaded ✓ (no saved profile yet)";
-        return;
-      }
-
-      document.getElementById("statusLine").textContent = "Loaded ✓ (profile found)";
-      document.getElementById("firstName").value = p.first_name || "";
-      document.getElementById("lastName").value  = p.last_name || "";
-      document.getElementById("dobUk").value     = isoToUk(p.dob);
-      document.getElementById("club").value      = p.club || "";
-      document.getElementById("stance").value    = p.stance || "";
-      document.getElementById("notes").value     = p.notes || "";
-
+      document.getElementById("statusLine").textContent = "Loaded ✓";
+      fillForm(res.profile || null);
     }catch(e){
-      console.error("GET profile failed:", e);
-      document.getElementById("statusLine").textContent =
-        "Loaded ✓ (no saved profile yet, or GET failed — check console)";
+      console.warn(e);
+      document.getElementById("statusLine").textContent = "Loaded ✓ (no saved profile yet, or GET failed — check console)";
     }
   }
 
   document.getElementById("copyBoxerId").onclick = async () => {
-    const v = document.getElementById("boxerId").value || "";
+    const v = document.getElementById("boxerId").value.trim();
     if(!v) return;
-    try{
-      await navigator.clipboard.writeText(v);
-    }catch{}
+    await navigator.clipboard.writeText(v);
   };
 
-  document.getElementById("saveBtn").onclick = async () => {
-    const boxer_id = getBoxerId();
-    if(!boxer_id){
-      alert("Save failed: Missing boxer_id");
+  document.getElementById("saveBoxerId").onclick = async () => {
+    const v = document.getElementById("boxerId").value.trim();
+    if(!v){
+      alert("Please paste a boxer_id first.");
       return;
     }
+    setBoxerId(v);
+    document.getElementById("boxerIdSaved").textContent = "Saved ✓";
+    setTimeout(()=>document.getElementById("boxerIdSaved").textContent="", 1500);
+    await boot();
+  };
 
-    // Persist boxer_id into settings so Training page can use it too
-    const s = loadSettings();
-    s.boxer_id = boxer_id;
-    saveSettings(s);
-
-    let dobIso = null;
-    try{
-      dobIso = parseUkDobToIso(document.getElementById("dobUk").value);
-    }catch(e){
-      alert("Save failed: " + e.message);
+  document.getElementById("saveProfile").onclick = async () => {
+    const boxer_id = getBoxerId();
+    if(!boxer_id){
+      alert("Save failed: Missing boxer_id (press 'Save boxer_id' first).");
       return;
     }
 
     const payload = {
       boxer_id,
-      first_name: (document.getElementById("firstName").value || "").trim(),
-      last_name:  (document.getElementById("lastName").value || "").trim(),
-      dob: dobIso ? dobIso : null,              // send ISO to API/DB
-      club: (document.getElementById("club").value || "").trim(),
-      stance: (document.getElementById("stance").value || "").trim(),
-      notes: (document.getElementById("notes").value || "").trim() || null
+      first_name: document.getElementById("firstName").value.trim(),
+      last_name:  document.getElementById("lastName").value.trim(),
+      dob:        document.getElementById("dob").value.trim(),   // DD/MM/YYYY accepted
+      club:       document.getElementById("club").value.trim(),
+      stance:     document.getElementById("stance").value,
+      notes:      document.getElementById("notes").value.trim() || null,
     };
 
-    const msg = document.getElementById("savedMsg");
-    msg.textContent = "Saving...";
-    document.getElementById("saveBtn").disabled = true;
+    document.getElementById("saveProfile").disabled = true;
+    document.getElementById("saveResult").textContent = "Saving…";
 
     try{
-      await apiSaveProfile(payload);
-      msg.textContent = "Saved ✓";
-      setTimeout(()=> msg.textContent="", 1500);
+      const res = await apiSaveProfile(payload);
+      document.getElementById("saveResult").textContent = "Saved ✓";
+      fillForm(res.profile || null);
     }catch(e){
-      console.error("POST profile failed:", e);
-      alert("Save failed: " + (e.message || "Unknown error"));
-      msg.textContent = "";
+      console.error(e);
+      alert("Save failed: " + (e?.message || String(e)));
+      document.getElementById("saveResult").textContent = "";
     }finally{
-      document.getElementById("saveBtn").disabled = false;
+      document.getElementById("saveProfile").disabled = false;
     }
   };
 
   boot();
 </script>
-
 </body>
 </html>
