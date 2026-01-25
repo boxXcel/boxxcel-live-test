@@ -49,6 +49,88 @@ const PROGRAMME = "12wk_fundamentals";
 const AGE_GROUP = "12-15";
 
 /* ============================================================
+   AUTH + SETTINGS HELPERS (NEW)
+   - This makes boxer_id reliable across pages
+============================================================ */
+function getJwtToken() {
+  // try both because different pages/functions often store different names
+  return (
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("id_token") ||
+    ""
+  );
+}
+
+function authHeadersJson() {
+  const t = getJwtToken();
+  return {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + t,
+  };
+}
+
+function loadSettings(){
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function saveSettings(obj){
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj || {}));
+}
+
+function getBoxerIdFromSettings(){
+  const s = loadSettings();
+  // support both, just in case older code used boxerId
+  return s.boxer_id || s.boxerId || "";
+}
+
+// Calls backend to get current user mapping (should return boxer_id or similar)
+async function fetchMe(){
+  const t = getJwtToken();
+  if (!t) return null;
+
+  const res = await fetch(`${API_BASE}/api/me`, {
+    method: "GET",
+    headers: { "Authorization": "Bearer " + t },
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`GET /api/me failed (${res.status}): ${txt}`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  return data;
+}
+
+// Ensures we have boxer_id even if localStorage is empty/wrong-origin
+async function ensureBoxerId(){
+  // 1) localStorage fast path
+  let boxerId = getBoxerIdFromSettings();
+  if (boxerId) return boxerId;
+
+  // 2) backend source-of-truth
+  const me = await fetchMe();
+  if (!me) return "";
+
+  boxerId =
+    me.boxer_id ||
+    me.boxerId ||
+    (me.profile && me.profile.boxer_id) ||
+    "";
+
+  if (!boxerId) return "";
+
+  // 3) cache it for this origin
+  const s = loadSettings();
+  s.boxer_id = boxerId;
+  saveSettings(s);
+
+  return boxerId;
+}
+
+/* ============================================================
    API HELPERS
 ============================================================ */
 function cardsApiUrl() {
@@ -57,18 +139,6 @@ function cardsApiUrl() {
 
 function planApiUrlForWeek(week) {
   return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
-}
-
-function getIdToken() {
-  return localStorage.getItem("id_token") || "";
-}
-
-function authHeadersJson() {
-  const t = getIdToken();
-  return {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer " + t,
-  };
 }
 
 // Call your Lambda route to write to DB
@@ -95,7 +165,7 @@ function esc(s){
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
+    .replaceAll('"'," &quot;")
     .replaceAll("'","&#039;");
 }
 
@@ -104,11 +174,6 @@ function todayISO(){
   const off = d.getTimezoneOffset();
   const local = new Date(d.getTime() - off * 60000);
   return local.toISOString().slice(0,10);
-}
-
-function loadSettings(){
-  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
-  catch { return {}; }
 }
 
 function loadCompletions(){
@@ -248,14 +313,22 @@ function renderDay(plan, cards, dayInWeek, date){
       const currentlyDone = btn.textContent.includes("Completed");
       const nextDone = !currentlyDone;
 
-      // ✅ boxer_id is stored in localStorage settings via /assets/app.js helpers
-      const boxer_id = (typeof getBoxerId === "function") ? getBoxerId() : "";
+      // ✅ NEW: always ensure boxer_id (from settings OR /api/me)
+      let boxer_id = "";
+      try {
+        boxer_id = await ensureBoxerId();
+      } catch (e) {
+        console.error(e);
+        alert("Could not read boxer_id from server (/api/me). Check login/token.");
+        return;
+      }
+
       if (!boxer_id) {
         alert(
-          "Missing boxer_id in settings.\n\n" +
-          "It is stored in localStorage under key: boxxcel_settings_v1\n" +
-          "field: boxer_id\n\n" +
-          "We can add a small settings/admin page to set it."
+          "Missing boxer_id.\n\n" +
+          "Fix:\n" +
+          "1) Make sure you're logged in (JWT exists).\n" +
+          "2) Make sure you are consistently using https://www.boxxcel.com (same origin).\n"
         );
         return;
       }
