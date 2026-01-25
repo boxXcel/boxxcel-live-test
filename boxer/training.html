@@ -44,95 +44,28 @@ renderNav();
 const SETTINGS_KEY    = "boxxcel_settings_v1";
 const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
+// IMPORTANT: this is 0v4tvwe5l4 (5l4)
 const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+
 const PROGRAMME = "12wk_fundamentals";
 const AGE_GROUP = "12-15";
 
 /* ============================================================
-   AUTH + SETTINGS HELPERS (NEW)
-   - This makes boxer_id reliable across pages
+   AUTH / API HELPERS
 ============================================================ */
-function getJwtToken() {
-  // try both because different pages/functions often store different names
-  return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("id_token") ||
-    ""
-  );
+function getIdToken() {
+  // prefer id_token, fallback to access_token
+  return localStorage.getItem("id_token") || localStorage.getItem("access_token") || "";
 }
 
 function authHeadersJson() {
-  const t = getJwtToken();
+  const t = getIdToken();
   return {
     "Content-Type": "application/json",
     "Authorization": "Bearer " + t,
   };
 }
 
-function loadSettings(){
-  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
-  catch { return {}; }
-}
-
-function saveSettings(obj){
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj || {}));
-}
-
-function getBoxerIdFromSettings(){
-  const s = loadSettings();
-  // support both, just in case older code used boxerId
-  return s.boxer_id || s.boxerId || "";
-}
-
-// Calls backend to get current user mapping (should return boxer_id or similar)
-async function fetchMe(){
-  const t = getJwtToken();
-  if (!t) return null;
-
-  const res = await fetch(`${API_BASE}/api/me`, {
-    method: "GET",
-    headers: { "Authorization": "Bearer " + t },
-    cache: "no-store"
-  });
-
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`GET /api/me failed (${res.status}): ${txt}`);
-  }
-
-  const data = await res.json().catch(() => ({}));
-  return data;
-}
-
-// Ensures we have boxer_id even if localStorage is empty/wrong-origin
-async function ensureBoxerId(){
-  // 1) localStorage fast path
-  let boxerId = getBoxerIdFromSettings();
-  if (boxerId) return boxerId;
-
-  // 2) backend source-of-truth
-  const me = await fetchMe();
-  if (!me) return "";
-
-  boxerId =
-    me.boxer_id ||
-    me.boxerId ||
-    (me.profile && me.profile.boxer_id) ||
-    "";
-
-  if (!boxerId) return "";
-
-  // 3) cache it for this origin
-  const s = loadSettings();
-  s.boxer_id = boxerId;
-  saveSettings(s);
-
-  return boxerId;
-}
-
-/* ============================================================
-   API HELPERS
-============================================================ */
 function cardsApiUrl() {
   return `${API_BASE}/api/cards?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}`;
 }
@@ -141,7 +74,63 @@ function planApiUrlForWeek(week) {
   return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
 }
 
-// Call your Lambda route to write to DB
+/* ============================================================
+   SETTINGS + BOXER ID (PRODUCTION-STYLE)
+   - If boxer_id missing locally, fetch it from /me and cache it
+============================================================ */
+function loadSettings(){
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function saveSettings(s){
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s || {}));
+}
+
+async function fetchMe(){
+  const res = await fetch(`${API_BASE}/me`, {
+    method: "GET",
+    headers: {
+      "Authorization": "Bearer " + getIdToken()
+    }
+  });
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(`/me failed (${res.status}): ${text}`);
+
+  try { return JSON.parse(text); } catch { return {}; }
+}
+
+async function ensureBoxerId(){
+  // 1) try local storage first (fast)
+  const s = loadSettings();
+  if (s.boxer_id) return s.boxer_id;
+
+  // 2) fallback to backend /me (source of truth)
+  const me = await fetchMe();
+
+  // Accept a few possible shapes:
+  // { boxer_id: "..." } OR { ok:true, boxer_id:"..." } OR { boxerId:"..." }
+  const boxerId =
+    me.boxer_id ||
+    me.boxerId ||
+    (me.data && (me.data.boxer_id || me.data.boxerId)) ||
+    "";
+
+  if (!boxerId) {
+    throw new Error("No boxer_id returned from /me. Check the /me route + integration + JWT auth.");
+  }
+
+  // 3) cache for legacy pages that still read from localStorage
+  s.boxer_id = boxerId;
+  saveSettings(s);
+
+  return boxerId;
+}
+
+/* ============================================================
+   DB WRITE (card completion)
+============================================================ */
 async function postCardComplete({ boxer_id, card_id, is_done, log_date }) {
   const res = await fetch(`${API_BASE}/boxer/card-complete`, {
     method: "POST",
@@ -150,9 +139,7 @@ async function postCardComplete({ boxer_id, card_id, is_done, log_date }) {
   });
 
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`card-complete failed (${res.status}): ${text}`);
-  }
+  if (!res.ok) throw new Error(`card-complete failed (${res.status}): ${text}`);
 
   try { return JSON.parse(text); } catch { return { ok: true, raw: text }; }
 }
@@ -165,7 +152,7 @@ function esc(s){
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
-    .replaceAll('"'," &quot;")
+    .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
 
@@ -313,29 +300,12 @@ function renderDay(plan, cards, dayInWeek, date){
       const currentlyDone = btn.textContent.includes("Completed");
       const nextDone = !currentlyDone;
 
-      // ✅ NEW: always ensure boxer_id (from settings OR /api/me)
-      let boxer_id = "";
-      try {
-        boxer_id = await ensureBoxerId();
-      } catch (e) {
-        console.error(e);
-        alert("Could not read boxer_id from server (/api/me). Check login/token.");
-        return;
-      }
-
-      if (!boxer_id) {
-        alert(
-          "Missing boxer_id.\n\n" +
-          "Fix:\n" +
-          "1) Make sure you're logged in (JWT exists).\n" +
-          "2) Make sure you are consistently using https://www.boxxcel.com (same origin).\n"
-        );
-        return;
-      }
-
       btn.disabled = true;
 
       try {
+        // Source of truth = backend
+        const boxer_id = await ensureBoxerId();
+
         // 1) write to DB via API
         await postCardComplete({
           boxer_id,
@@ -350,7 +320,7 @@ function renderDay(plan, cards, dayInWeek, date){
 
       } catch (e) {
         console.error(e);
-        alert("Failed to save completion to server. Check console / CloudWatch logs.");
+        alert("Failed to save completion. Check console + CloudWatch logs.\n\n" + String(e.message || e));
       } finally {
         btn.disabled = false;
       }
@@ -371,9 +341,7 @@ async function load(){
     fetch(planApiUrlForWeek(week), { cache: "no-store" })
   ]);
 
-  if (!cardsRes.ok || !planRes.ok){
-    throw new Error("API request failed");
-  }
+  if (!cardsRes.ok || !planRes.ok) throw new Error("API request failed");
 
   const cards = await cardsRes.json();
   const plan  = await planRes.json();
