@@ -33,7 +33,7 @@
 
 <script>
 /* ============================================================
-   INIT
+   INIT UI
 ============================================================ */
 renderTopbar("boxXcel — Training plan");
 renderNav();
@@ -42,36 +42,44 @@ renderNav();
    CONFIG
 ============================================================ */
 const SETTINGS_KEY    = "boxxcel_settings_v1";
-const COMPLETIONS_KEY = "boxxcel_completions_v1";
+const COMPLETIONS_KEY = "boxxcel_completions_v1"; // local fallback cache only
 
+// ✅ IMPORTANT: your API base (note the "5l4")
 const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+
 const PROGRAMME = "12wk_fundamentals";
 const AGE_GROUP = "12-15";
 
 /* ============================================================
-   AUTH + API HELPERS
+   AUTH / HEADERS
 ============================================================ */
-function getAuthToken() {
-  // Prefer id_token; fallback access_token
+function getIdToken() {
+  // Your app seems to use id_token; fallback to access_token
   return localStorage.getItem("id_token") || localStorage.getItem("access_token") || "";
 }
 
 function authHeadersJson() {
-  const t = getAuthToken();
+  const t = getIdToken();
   return {
     "Content-Type": "application/json",
     "Authorization": "Bearer " + t,
   };
 }
 
+/* ============================================================
+   SAFE JSON FETCH HELPERS
+============================================================ */
 async function apiGetJson(url) {
-  const res = await fetch(url, { method: "GET", headers: authHeadersJson(), cache: "no-store" });
+  const res = await fetch(url, {
+    method: "GET",
+    headers: authHeadersJson(),
+    cache: "no-store",
+  });
   const text = await res.text();
   let data = null;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
   if (!res.ok) {
-    const msg = (data && data.error) ? data.error : (text || `HTTP ${res.status}`);
+    const msg = (data && (data.error || data.message)) ? (data.error || data.message) : text;
     throw new Error(`GET failed (${res.status}): ${msg}`);
   }
   return data;
@@ -85,17 +93,16 @@ async function apiPostJson(url, bodyObj) {
   });
   const text = await res.text();
   let data = null;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
   if (!res.ok) {
-    const msg = (data && data.error) ? data.error : (text || `HTTP ${res.status}`);
+    const msg = (data && (data.error || data.message)) ? (data.error || data.message) : text;
     throw new Error(`POST failed (${res.status}): ${msg}`);
   }
   return data;
 }
 
 /* ============================================================
-   ROUTES
+   API URLs
 ============================================================ */
 function cardsApiUrl() {
   return `${API_BASE}/api/cards?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}`;
@@ -105,18 +112,19 @@ function planApiUrlForWeek(week) {
   return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
 }
 
+// ✅ NEW: server completions
 function completionsApiUrl(fromISO, toISO) {
   return `${API_BASE}/api/boxer/completions?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`;
 }
 
-/* Your existing write route */
-async function postCardComplete({ boxer_id, card_id, is_done, log_date }) {
-  return apiPostJson(`${API_BASE}/boxer/card-complete`, { boxer_id, card_id, is_done, log_date });
+// Existing writer endpoint
+function cardCompletePostUrl() {
+  return `${API_BASE}/boxer/card-complete`;
 }
 
-/* Optional: /me route if you want it for debugging / future */
-async function getMe() {
-  return apiGetJson(`${API_BASE}/me`);
+// ✅ boxer id resolver endpoint
+function meApiUrl() {
+  return `${API_BASE}/me`;
 }
 
 /* ============================================================
@@ -138,24 +146,35 @@ function todayISO(){
   return local.toISOString().slice(0,10);
 }
 
+function addDaysISO(baseISO, days){
+  const d = new Date(baseISO + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0,10);
+}
+
 function loadSettings(){
   try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
   catch { return {}; }
 }
 
 function saveSettings(obj){
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj || {}));
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj));
 }
 
-function loadCompletions(){
+function loadCompletionsLocal(){
   try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
   catch { return {}; }
 }
 
-function saveCompletions(obj){
-  localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj || {}));
+function saveCompletionsLocal(obj){
+  localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj));
 }
 
+/* ============================================================
+   PROGRAMME DAY / WEEK
+============================================================ */
 function daysBetween(startISO, endISO){
   const s = new Date(startISO + "T00:00:00");
   const e = new Date(endISO + "T00:00:00");
@@ -176,72 +195,96 @@ function getWeekAndDay(dayNumber){
 }
 
 /* ============================================================
-   BOXER ID: resolve once, keep in settings for convenience
+   SOURCE OF TRUTH: SERVER COMPLETIONS
+   - returns Map(date -> Set(card_id done=true))
 ============================================================ */
-async function ensureBoxerId() {
-  const s = loadSettings();
-  if (s.boxer_id) return s.boxer_id;
+function buildDoneMapFromServerPayload(payload){
+  // Supports either:
+  // payload.by_date = { "YYYY-MM-DD": [ {card_id,is_done}, ... ] }
+  // or payload.completions = [ {log_date,card_id,is_done}, ... ]
+  const doneByDate = new Map();
 
-  // If your /me lambda later returns boxer_id, use it.
-  // For now, we simply keep the local setting pattern.
-  // If boxer_id is truly missing, we cannot write completions reliably.
-  throw new Error("Missing boxer_id in settings (boxxcel_settings_v1.boxer_id). Set it on the profile page first.");
+  if (payload && payload.by_date) {
+    for (const [date, arr] of Object.entries(payload.by_date)) {
+      const set = new Set();
+      (arr || []).forEach(x => { if (x && x.is_done) set.add(x.card_id); });
+      doneByDate.set(date, set);
+    }
+    return doneByDate;
+  }
+
+  if (payload && Array.isArray(payload.completions)) {
+    for (const row of payload.completions) {
+      if (!row) continue;
+      const date = row.log_date;
+      if (!doneByDate.has(date)) doneByDate.set(date, new Set());
+      if (row.is_done) doneByDate.get(date).add(row.card_id);
+      else doneByDate.get(date).delete(row.card_id);
+    }
+    return doneByDate;
+  }
+
+  return doneByDate;
 }
 
-/* ============================================================
-   COMPLETIONS: server-first, local fallback
-============================================================ */
-function normalizeLocalDay(dayISO) {
-  const all = loadCompletions();
-  if (!all[dayISO]) all[dayISO] = { cards: [], required: [] };
-  return all;
-}
-
-function setRequired(dateISO, ids){
-  const all = normalizeLocalDay(dateISO);
-  all[dateISO].required = ids || [];
-  saveCompletions(all);
-}
-
-function getCompletedSetFor(dateISO){
-  const all = loadCompletions();
-  const d = all[dateISO] || { cards: [] };
+// Optional local fallback cache (only if server fails)
+function getDoneSetLocalFor(date){
+  const all = loadCompletionsLocal();
+  const d = all[date] || { cards: [] };
   return new Set(d.cards || []);
 }
 
-function setCardCompleteLocal(dateISO, cardId, done){
-  const all = normalizeLocalDay(dateISO);
-  const set = new Set(all[dateISO].cards || []);
-  done ? set.add(cardId) : set.delete(cardId);
-  all[dateISO].cards = [...set];
-  saveCompletions(all);
+function setCardCompleteLocal(date, id, done){
+  const all = loadCompletionsLocal();
+  const d = all[date] || { cards: [], required: [] };
+  const set = new Set(d.cards || []);
+  done ? set.add(id) : set.delete(id);
+  all[date] = { ...d, cards: [...set] };
+  saveCompletionsLocal(all);
 }
 
-function mergeServerCompletionsIntoLocal(serverDays) {
-  // serverDays: { "YYYY-MM-DD": { cards_done: [...], cards_undone: [...] } }
-  const all = loadCompletions();
+function setRequiredLocal(date, ids){
+  const all = loadCompletionsLocal();
+  const d = all[date] || { cards: [] };
+  all[date] = { ...d, required: ids };
+  saveCompletionsLocal(all);
+}
 
-  for (const [dayISO, info] of Object.entries(serverDays || {})) {
-    const doneSet = new Set(info.cards_done || []);
-    // Store only "done" cards locally, because that’s what UI uses.
-    const existing = all[dayISO] || { cards: [], required: [] };
-    all[dayISO] = { ...existing, cards: [...doneSet] };
+/* ============================================================
+   BOXER ID RESOLUTION (PRODUCTION)
+   - Always try settings first
+   - If missing, call /me and store boxer_id
+============================================================ */
+async function getBoxerIdProduction(){
+  const s = loadSettings();
+  if (s.boxer_id) return s.boxer_id;
+
+  // If assets/app.js defines getBoxerId() and it returns something, use it
+  if (typeof getBoxerId === "function") {
+    const maybe = getBoxerId();
+    if (maybe) {
+      s.boxer_id = maybe;
+      saveSettings(s);
+      return maybe;
+    }
   }
 
-  saveCompletions(all);
+  // Call /me to resolve boxer_id
+  const me = await apiGetJson(meApiUrl());
+  // Expecting: { ok:true, boxer_id:"...", sub:"...", email:"..." } (based on your screenshot)
+  const boxer_id = me && (me.boxer_id || (me.data && me.data.boxer_id));
+  if (!boxer_id) throw new Error("Could not resolve boxer_id from /me");
+
+  s.boxer_id = boxer_id;
+  saveSettings(s);
+  return boxer_id;
 }
 
-async function fetchCompletionsFromServer() {
-  // Pull enough history so phone/laptop match.
-  // Use startDate if set; otherwise last 60 days.
-  const s = loadSettings();
-  const toISO = todayISO();
-  const fromISO = s.startDate ? s.startDate : (new Date(Date.now() - 60*86400000)).toISOString().slice(0,10);
-
-  const data = await apiGetJson(completionsApiUrl(fromISO, toISO));
-  if (!data.ok) throw new Error(data.error || "Completions server error");
-
-  mergeServerCompletionsIntoLocal(data.days);
+/* ============================================================
+   WRITE COMPLETION TO DB
+============================================================ */
+async function postCardCompleteToServer({ boxer_id, card_id, is_done, log_date }) {
+  return apiPostJson(cardCompletePostUrl(), { boxer_id, card_id, is_done, log_date });
 }
 
 /* ============================================================
@@ -287,8 +330,10 @@ function cardHtml(c, done){
 
 /* ============================================================
    MAIN RENDER
+   - Uses serverDoneMap first
+   - Falls back to local if server fetch failed
 ============================================================ */
-function renderDay(plan, cards, dayInWeek, dateISO){
+function renderDay(plan, cards, dayInWeek, date, doneSetForDate, useLocalCacheForRequired=false){
   const settings = loadSettings();
   const freq = settings.frequency === 6 ? 6 : 5;
 
@@ -311,13 +356,14 @@ function renderDay(plan, cards, dayInWeek, dateISO){
   const required =
     (dayPlan.type === "optional" && freq === 5) ? [] : dayPlan.card_ids;
 
-  setRequired(dateISO, required);
+  // keep local required for UI consistency (optional)
+  if (useLocalCacheForRequired) setRequiredLocal(date, required);
 
   document.getElementById("dayMeta").textContent =
     required.length ? "Complete all cards to finish today" : "Optional session";
 
   const map = Object.fromEntries(cards.map(c => [c.id, c]));
-  const done = getCompletedSetFor(dateISO);
+  const done = doneSetForDate || new Set();
 
   document.getElementById("cards").innerHTML =
     dayPlan.card_ids.map(id => cardHtml(map[id], done.has(id))).join("");
@@ -331,27 +377,26 @@ function renderDay(plan, cards, dayInWeek, dateISO){
       btn.disabled = true;
 
       try {
-        const boxer_id = await ensureBoxerId();
+        // 1) resolve boxer_id (from /me if needed)
+        const boxer_id = await getBoxerIdProduction();
 
-        // 1) write to DB via API
-        await postCardComplete({
+        // 2) write to DB
+        await postCardCompleteToServer({
           boxer_id,
           card_id: cardId,
           is_done: nextDone,
-          log_date: dateISO,
+          log_date: date,
         });
 
-        // 2) update local cache + re-render
-        setCardCompleteLocal(dateISO, cardId, nextDone);
+        // 3) update local fallback cache too (handy offline)
+        setCardCompleteLocal(date, cardId, nextDone);
 
-        // 3) refresh server completions in background (keeps devices in sync)
-        try { await fetchCompletionsFromServer(); } catch (e) { console.warn(e); }
-
+        // 4) reload from server so phone/laptop always consistent
         await load();
 
       } catch (e) {
         console.error(e);
-        alert(String(e.message || e));
+        alert("Failed to save completion to server. Check console / CloudWatch logs.");
       } finally {
         btn.disabled = false;
       }
@@ -362,31 +407,63 @@ function renderDay(plan, cards, dayInWeek, dateISO){
 /* ============================================================
    LOAD
 ============================================================ */
+async function fetchCompletionsFromServer(fromISO, toISO){
+  const url = completionsApiUrl(fromISO, toISO);
+  const data = await apiGetJson(url);
+  if (!data || data.ok !== true) {
+    throw new Error("Completions API returned unexpected response");
+  }
+  return data;
+}
+
 async function load(){
-  const dateISO = todayISO();
+  const date = todayISO();
   const dayNum = getProgrammeDayNumber();
   const { week, dayInWeek } = getWeekAndDay(dayNum);
 
-  // Server-first completions sync (phone/laptop consistency)
-  try {
-    await fetchCompletionsFromServer();
-  } catch (e) {
-    console.warn("Completions server fetch failed; using local cache fallback.", e);
-  }
-
+  // Fetch cards/plan in parallel
   const [cardsRes, planRes] = await Promise.all([
     fetch(cardsApiUrl(), { cache: "no-store" }),
     fetch(planApiUrlForWeek(week), { cache: "no-store" })
   ]);
 
   if (!cardsRes.ok || !planRes.ok){
-    throw new Error("API request failed");
+    throw new Error("Cards/Plan API request failed");
   }
 
   const cards = await cardsRes.json();
   const plan  = await planRes.json();
 
-  renderDay(plan, cards, dayInWeek, dateISO);
+  // ✅ Fetch completions from DB (server source of truth)
+  // Pull a wide window so switching days still shows previous completions
+  // (You can change this to 90 days etc.)
+  const fromISO = addDaysISO(date, -120);
+  const toISO   = addDaysISO(date,  1);
+
+  let doneSetForDate = null;
+  let usedLocalFallback = false;
+
+  try {
+    const payload = await fetchCompletionsFromServer(fromISO, toISO);
+    const doneMap = buildDoneMapFromServerPayload(payload);
+    doneSetForDate = doneMap.get(date) || new Set();
+  } catch (e) {
+    // Server failed -> fallback local cache (still usable, but not cross-device)
+    console.warn(
+      "Completions server fetch failed; using local cache fallback. Error:",
+      e && e.message ? e.message : e
+    );
+    usedLocalFallback = true;
+    doneSetForDate = getDoneSetLocalFor(date);
+  }
+
+  renderDay(plan, cards, dayInWeek, date, doneSetForDate, /*useLocalCacheForRequired=*/true);
+
+  if (usedLocalFallback) {
+    // optional: surface a subtle note
+    document.getElementById("dayMeta").textContent =
+      "Loaded (offline/local fallback). Server completions unavailable.";
+  }
 }
 
 /* ============================================================
