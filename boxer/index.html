@@ -1,14 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>boxXcel — Dashboard</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<script src="/auth/guard.js"></script>
+
+<div class="shell">
+  <div class="topbar" data-topbar></div>
+
+  <div class="container">
+    <div data-nav></div>
+
+    <!-- Boxer ID (kept, but /me can also resolve) -->
+    <div class="card">
+      <strong>Boxer ID</strong>
+      <div class="small">
+        This links your training completions to the correct boxer in the database.
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input
+          id="boxerId"
+          type="text"
+          placeholder="Paste boxer UUID here"
+          style="min-width:320px;padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;"
+        >
+        <button class="btn" id="saveBoxerId" type="button">Save</button>
+        <span class="small" id="boxerIdSaved"></span>
+      </div>
+
+      <div class="small" style="margin-top:8px; opacity:.85;" id="boxerIdHint"></div>
+    </div>
+
+    <!-- Training frequency -->
+    <div class="card">
+      <strong>Training frequency</strong>
+      <div class="small">
+        Default is 5 days/week. Switch to 6 only if the boxer already trains regularly.
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <select id="freq"
+          style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;">
+          <option value="5">Standard — 5 training days/week</option>
+          <option value="6">Advanced — 6 training days/week</option>
+        </select>
+
+        <button class="btn" id="saveFreq" type="button">Save</button>
+        <span class="small" id="freqSaved"></span>
+      </div>
+    </div>
+
+    <!-- Programme start date -->
+    <div class="card">
+      <strong>Programme start date</strong>
+      <div class="small">
+        Used to automatically select the correct training day.
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input
+          id="startDate"
+          type="date"
+          style="padding:10px;border-radius:10px;border:1px solid rgba(203,213,225,.18);background:rgba(2,6,23,.15);color:#e5e7eb;"
+        >
+        <button class="btn" id="saveStart" type="button">Save</button>
+        <span class="small" id="startSaved"></span>
+      </div>
+    </div>
+
+    <!-- Status tiles -->
+    <div class="tile-grid">
+      <div class="tile">
+        <strong>Today’s Session</strong>
+        <div class="small" id="todayStatus">—</div>
+      </div>
+
+      <div class="tile">
+        <strong>Weekly Completion</strong>
+        <div class="small" id="weeklyStatus">—</div>
+      </div>
+
+      <div class="tile">
+        <strong>Latest Weight</strong>
+        <div class="small">See Weight page</div>
+      </div>
+    </div>
+
+    <!-- Today’s Focus -->
+    <div class="card">
+      <strong>Today’s Focus</strong>
+      <div class="small" id="todayFocusMeta">Loading…</div>
+      <div id="todayFocusList" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- This Week strip -->
+    <div class="card">
+      <strong>This Week</strong>
+      <div class="small" id="weekStripMeta">Loading…</div>
+      <div id="weekStrip"
+           style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;"></div>
+    </div>
+
+    <!-- Safety -->
+    <div class="card">
+      <strong>Safety Reminder</strong>
+      <div class="small">
+        Training and information only. Stop if unwell, dizzy, or in pain.
+        Under-18s should train with appropriate supervision.
+      </div>
+    </div>
+
+    <div class="footer">boxXcel — Training support only</div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
 <script>
   renderTopbar("boxXcel — Boxer");
   renderNav();
 
+  /* =========================
+     CONFIG
+  ========================== */
   const SETTINGS_KEY = "boxxcel_settings_v1";
 
-  // ✅ IMPORTANT: correct API base (5l4)
+  // ✅ IMPORTANT: correct base (5l4)
   const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+
+  // Dashboard uses static plan json (as you already do)
+  const CARDS_URL = "/boxer/data/training_cards_12_15.json";
   const PROGRAMME = "12wk_fundamentals";
   const AGE_GROUP = "12-15";
 
+  /* =========================
+     HELPERS
+  ========================== */
   function esc(s){
     return String(s ?? "")
       .replaceAll("&","&amp;")
@@ -18,31 +148,24 @@
       .replaceAll("'","&#039;");
   }
 
-  function todayISO(){
-    const d = new Date();
+  function isoFromDateObj(d){
     const off = d.getTimezoneOffset();
     const local = new Date(d.getTime() - off * 60000);
     return local.toISOString().slice(0,10);
   }
 
-  function isoDateFromDateObj(d){
-    const x = new Date(d);
-    const off = x.getTimezoneOffset();
-    const local = new Date(x.getTime() - off * 60000);
-    return local.toISOString().slice(0,10);
-  }
+  function todayISO(){ return isoFromDateObj(new Date()); }
 
   function addDaysISO(baseISO, days){
     const d = new Date(baseISO + "T00:00:00");
     d.setDate(d.getDate() + days);
-    return isoDateFromDateObj(d);
+    return isoFromDateObj(d);
   }
 
   function loadSettings(){
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
     catch { return {}; }
   }
-
   function saveSettings(s){
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
@@ -50,13 +173,9 @@
   function getIdToken(){
     return localStorage.getItem("id_token") || localStorage.getItem("access_token") || "";
   }
-
   function authHeadersJson(){
     const t = getIdToken();
-    return {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + t,
-    };
+    return { "Content-Type":"application/json", "Authorization":"Bearer " + t };
   }
 
   async function apiGetJson(url){
@@ -71,22 +190,10 @@
     return data;
   }
 
-  function cardsApiUrl(){
-    return `${API_BASE}/api/cards?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}`;
-  }
-
-  function planApiUrlForWeek(week){
-    return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
-  }
-
-  function completionsApiUrl(fromISO, toISO){
-    return `${API_BASE}/api/boxer/completions?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`;
-  }
-
   function daysBetween(startISO, endISO){
     const s = new Date(startISO + "T00:00:00");
     const e = new Date(endISO + "T00:00:00");
-    return Math.floor((e - s) / 86400000);
+    return Math.floor((e - s) / (24*60*60*1000));
   }
 
   function getProgrammeDayNumber(){
@@ -102,57 +209,89 @@
     };
   }
 
+  function getPlanUrlForWeek(week){
+    // keep your existing behaviour
+    if (week === 2) return "/boxer/data/plan_12_15_week2.json";
+    return "/boxer/data/plan_12_15_week1.json";
+  }
+
   function startOfProgrammeWeek(startDateISO, weekNumber){
     const start = new Date(startDateISO + "T00:00:00");
     const d = new Date(start);
     d.setDate(start.getDate() + (weekNumber - 1) * 7);
-    return isoDateFromDateObj(d);
+    return isoFromDateObj(d);
   }
 
-  // Build map: date -> Set(card_id) where is_done=true
-  function buildDoneMap(payload){
-    const map = new Map();
+  /* =========================
+     BOXER ID (PRODUCTION)
+     - settings.boxer_id if present
+     - else /me
+  ========================== */
+  function meApiUrl(){ return `${API_BASE}/me`; }
 
-    // supports payload.by_date
-    if (payload && payload.by_date){
-      for (const [date, arr] of Object.entries(payload.by_date)){
-        const set = new Set();
-        (arr || []).forEach(x => { if (x && x.is_done) set.add(x.card_id); });
-        map.set(date, set);
+  async function getBoxerIdProduction(){
+    const s = loadSettings();
+    if (s.boxer_id) return s.boxer_id;
+
+    if (typeof getBoxerId === "function"){
+      const maybe = getBoxerId();
+      if (maybe){
+        s.boxer_id = maybe;
+        saveSettings(s);
+        return maybe;
       }
-      return map;
     }
 
-    // supports payload.completions list
+    const me = await apiGetJson(meApiUrl());
+    const boxer_id = me && (me.boxer_id || (me.data && me.data.boxer_id));
+    if (!boxer_id) throw new Error("Could not resolve boxer_id from /me");
+
+    s.boxer_id = boxer_id;
+    saveSettings(s);
+    return boxer_id;
+  }
+
+  /* =========================
+     COMPLETIONS (SERVER TRUTH)
+  ========================== */
+  function completionsApiUrl(fromISO, toISO){
+    return `${API_BASE}/api/boxer/completions?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`;
+  }
+
+  function buildDoneMapFromServerPayload(payload){
+    const doneByDate = new Map();
+
     if (payload && Array.isArray(payload.completions)){
       for (const row of payload.completions){
         if (!row) continue;
         const date = row.log_date;
-        if (!map.has(date)) map.set(date, new Set());
-        if (row.is_done) map.get(date).add(row.card_id);
-        else map.get(date).delete(row.card_id);
+        if (!doneByDate.has(date)) doneByDate.set(date, new Set());
+        if (row.is_done) doneByDate.get(date).add(row.card_id);
+        else doneByDate.get(date).delete(row.card_id);
       }
     }
 
-    return map;
-  }
-
-  function dayRequiredCardIds(dayPlan, freq){
-    if (!dayPlan) return [];
-    if (dayPlan.type === "rest") return [];
-    // Optional day logic (your plan seems to use "optional")
-    if (dayPlan.type === "optional" && freq === 5) return [];
-    return Array.isArray(dayPlan.card_ids) ? dayPlan.card_ids : [];
-  }
-
-  function isDayComplete(requiredIds, doneSet){
-    if (!requiredIds || requiredIds.length === 0) return false;
-    for (const id of requiredIds){
-      if (!doneSet || !doneSet.has(id)) return false;
+    if (payload && payload.by_date){
+      for (const [date, arr] of Object.entries(payload.by_date)){
+        const set = new Set();
+        (arr || []).forEach(x => { if (x && x.is_done) set.add(x.card_id); });
+        doneByDate.set(date, set);
+      }
     }
-    return true;
+
+    return doneByDate;
   }
 
+  async function fetchCompletionsWindow(fromISO, toISO){
+    await getBoxerIdProduction(); // ensure boxer_id exists in settings
+    const data = await apiGetJson(completionsApiUrl(fromISO, toISO));
+    if (!data || data.ok !== true) throw new Error("Completions API returned unexpected response");
+    return data;
+  }
+
+  /* =========================
+     UI RENDERERS
+  ========================== */
   function renderFocusList(items){
     const holder = document.getElementById("todayFocusList");
     if (!items || items.length === 0){
@@ -164,6 +303,65 @@
         ${items.map(t => `<li>${esc(t)}</li>`).join("")}
       </ul>
     `;
+  }
+
+  async function renderTodayFocus(){
+    const meta = document.getElementById("todayFocusMeta");
+    const settings = loadSettings();
+    const freq = settings.frequency === 6 ? 6 : 5;
+
+    const programmeDay = getProgrammeDayNumber();
+    const { week, dayInWeek } = getWeekAndDay(programmeDay);
+    const planUrl = getPlanUrlForWeek(week);
+
+    const [planRes, cardsRes] = await Promise.all([
+      fetch(planUrl, { cache: "no-store" }),
+      fetch(CARDS_URL, { cache: "no-store" })
+    ]);
+
+    if (!planRes.ok || !cardsRes.ok){
+      meta.textContent = "Could not load today’s focus (missing data files).";
+      renderFocusList([]);
+      return;
+    }
+
+    const plan = await planRes.json();
+    const cards = await cardsRes.json();
+
+    const dayPlan = (plan.days || []).find(d => d.day === dayInWeek);
+    if (!dayPlan){
+      meta.textContent = "No plan found for today.";
+      renderFocusList([]);
+      return;
+    }
+
+    meta.textContent = `Week ${week} — Day ${dayInWeek}: ${dayPlan.name}`;
+
+    if (dayPlan.type === "rest"){
+      renderFocusList(["Rest day — recovery only (sleep, hydration, light movement)."]);
+      return;
+    }
+
+    if (dayInWeek === 6 && dayPlan.type === "optional" && freq === 5){
+      renderFocusList([
+        "Active recovery day (5 days/week).",
+        "If the boxer trains regularly, switch to 6 days/week."
+      ]);
+      return;
+    }
+
+    const map = new Map((cards || []).map(c => [c.id, c]));
+    const titles = (dayPlan.card_ids || [])
+      .map(id => map.get(id))
+      .filter(Boolean)
+      .map(c => c.title);
+
+    if (titles.length === 0){
+      renderFocusList(["No cards available for today (check card IDs)."]);
+      return;
+    }
+
+    renderFocusList(titles);
   }
 
   function renderWeekStripDay(label, state, isToday){
@@ -184,133 +382,147 @@
     return `<div title="${title}" style="${base}${ring}">${symbol} ${label}</div>`;
   }
 
-  async function renderDashboardFromServer(){
-    const s = loadSettings();
-    const freq = s.frequency === 6 ? 6 : 5;
-
-    // Fill settings UI
-    if (s.boxer_id && document.getElementById("boxerId")) document.getElementById("boxerId").value = s.boxer_id;
-    document.getElementById("freq").value = String(freq);
-    if (s.startDate) document.getElementById("startDate").value = s.startDate;
-
-    // Need start date to align week strip + weekly completion
-    if (!s.startDate){
-      document.getElementById("todayStatus").textContent = "Set programme start date";
-      document.getElementById("weeklyStatus").textContent = "Set programme start date";
-      document.getElementById("todayFocusMeta").textContent = "Set programme start date to load today’s focus.";
-      document.getElementById("weekStripMeta").textContent = "Set a programme start date to track your week.";
-      document.getElementById("weekStrip").innerHTML = ["D1","D2","D3","D4","D5","D6","D7"]
-        .map(d => renderWeekStripDay(d, "pending", false))
-        .join("");
-      renderFocusList([]);
-      return;
+  function isDayCompleteFromServer(requiredIds, doneSet){
+    if (!requiredIds || requiredIds.length === 0) return false;
+    for (const id of requiredIds){
+      if (!doneSet.has(id)) return false;
     }
+    return true;
+  }
 
-    // Auth check
-    const token = getIdToken();
-    if (!token){
-      document.getElementById("todayStatus").textContent = "Please login again";
-      document.getElementById("weeklyStatus").textContent = "Please login again";
-      document.getElementById("todayFocusMeta").textContent = "No token found — please login again.";
-      document.getElementById("weekStripMeta").textContent = "No token found — please login again.";
-      document.getElementById("weekStrip").innerHTML = "";
-      renderFocusList([]);
-      return;
-    }
+  async function renderWeekStripAndStats(doneMap){
+    const meta = document.getElementById("weekStripMeta");
+    const holder = document.getElementById("weekStrip");
+
+    const settings = loadSettings();
+    const freq = settings.frequency === 6 ? 6 : 5;
 
     const programmeDay = getProgrammeDayNumber();
     const { week, dayInWeek } = getWeekAndDay(programmeDay);
+    const planUrl = getPlanUrlForWeek(week);
 
-    // Fetch plan/cards for current week from API
-    const [plan, cards] = await Promise.all([
-      apiGetJson(planApiUrlForWeek(week)),
-      apiGetJson(cardsApiUrl()),
-    ]);
-
-    const cardsMap = new Map((cards || []).map(c => [c.id, c]));
-
-    // Week range
-    const weekStartISO = startOfProgrammeWeek(s.startDate, week);
-    const weekEndISO = addDaysISO(weekStartISO, 6);
-    const fromISO = weekStartISO;
-    const toISO = addDaysISO(weekEndISO, 1); // inclusive end -> +1 day for query
-
-    // Fetch completions for this week from server
-    const completionsPayload = await apiGetJson(completionsApiUrl(fromISO, toISO));
-    const doneMap = buildDoneMap(completionsPayload);
-
-    // Today
-    const today = todayISO();
-    const todayPlan = (plan.days || []).find(d => d.day === dayInWeek);
-    const todayRequired = dayRequiredCardIds(todayPlan, freq);
-    const todayDoneSet = doneMap.get(today) || new Set();
-
-    document.getElementById("todayStatus").textContent =
-      (todayPlan && todayPlan.type === "rest") ? "Rest day" :
-      (todayRequired.length === 0) ? "Optional / not required" :
-      (isDayComplete(todayRequired, todayDoneSet) ? "Completed ✓" : "Not completed");
-
-    // Today focus
-    if (!todayPlan){
-      document.getElementById("todayFocusMeta").textContent = "No plan found for today.";
-      renderFocusList([]);
-    } else if (todayPlan.type === "rest"){
-      document.getElementById("todayFocusMeta").textContent = `Week ${week} — Day ${dayInWeek}: ${todayPlan.name}`;
-      renderFocusList(["Rest day — recovery only (sleep, hydration, light movement)."]);
-    } else if (todayRequired.length === 0){
-      document.getElementById("todayFocusMeta").textContent = `Week ${week} — Day ${dayInWeek}: ${todayPlan.name}`;
-      renderFocusList([
-        "Optional day (5 days/week).",
-        "Switch to 6 days/week only if the boxer trains regularly."
-      ]);
-    } else {
-      const titles = todayRequired
-        .map(id => cardsMap.get(id))
-        .filter(Boolean)
-        .map(c => c.title);
-      document.getElementById("todayFocusMeta").textContent = `Week ${week} — Day ${dayInWeek}: ${todayPlan.name}`;
-      renderFocusList(titles.length ? titles : ["No cards found for today (card IDs mismatch)."]);
+    if (!settings.startDate){
+      meta.textContent = "Set a programme start date to track your week.";
+      holder.innerHTML = ["D1","D2","D3","D4","D5","D6","D7"]
+        .map(d => renderWeekStripDay(d, "pending", false))
+        .join("");
+      document.getElementById("todayStatus").textContent = "—";
+      document.getElementById("weeklyStatus").textContent = "—";
+      return;
     }
 
-    // Week strip + weekly completion (aligned to server)
-    document.getElementById("weekStripMeta").textContent = `Week ${week} overview (today highlighted)`;
+    const planRes = await fetch(planUrl, { cache:"no-store" });
+    if (!planRes.ok){
+      meta.textContent = "Could not load weekly plan.";
+      holder.innerHTML = "";
+      document.getElementById("todayStatus").textContent = "—";
+      document.getElementById("weeklyStatus").textContent = "—";
+      return;
+    }
 
-    let targetDays = 0;
-    let completedDays = 0;
+    const plan = await planRes.json();
+    const days = Array.isArray(plan.days) ? plan.days : [];
+
+    const weekStartISO = startOfProgrammeWeek(settings.startDate, week);
+    const today = todayISO();
+    meta.textContent = `Week ${week} overview (today highlighted)`;
 
     const pieces = [];
+    let completedDaysCount = 0;
+
+    // We define "required training days" as:
+    // - D1..D5 always training
+    // - D6 optional if freq=5, required if freq=6 and plan says optional
+    // - Rest days never count
+    let targetDays = freq;
+
     for (let d = 1; d <= 7; d++){
-      const dayPlan = (plan.days || []).find(x => x.day === d) || { type:"training", card_ids:[] };
+      const dayPlan = days.find(x => x.day === d) || { type:"training", card_ids:[] };
       const dateISO = addDaysISO(weekStartISO, d - 1);
 
       let state = "pending";
 
       if (dayPlan.type === "rest"){
         state = "rest";
-      } else if (dayPlan.type === "optional" && freq === 5){
+      } else if (d === 6 && dayPlan.type === "optional" && freq === 5){
         state = "optional";
       } else {
-        const req = dayRequiredCardIds(dayPlan, freq);
-        if (req.length > 0) targetDays++;
-
+        const requiredIds = Array.isArray(dayPlan.card_ids) ? dayPlan.card_ids : [];
         const doneSet = doneMap.get(dateISO) || new Set();
-        const done = isDayComplete(req, doneSet);
-        if (req.length > 0 && done) completedDays++;
-
-        state = (req.length > 0 && done) ? "done" : "pending";
+        const dayDone = isDayCompleteFromServer(requiredIds, doneSet);
+        state = dayDone ? "done" : "pending";
+        if (dayDone) completedDaysCount++;
       }
 
       pieces.push(renderWeekStripDay(`D${d}`, state, dateISO === today));
     }
 
-    document.getElementById("weekStrip").innerHTML = pieces.join("");
+    holder.innerHTML = pieces.join("");
 
-    const pct = targetDays ? Math.round((completedDays / targetDays) * 100) : 0;
+    // Today status
+    const todayPlan = days.find(x => x.day === dayInWeek) || { type:"training", card_ids:[] };
+    if (todayPlan.type === "rest"){
+      document.getElementById("todayStatus").textContent = "Rest day";
+    } else if (dayInWeek === 6 && todayPlan.type === "optional" && freq === 5){
+      document.getElementById("todayStatus").textContent = "Optional day";
+    } else {
+      const requiredIds = Array.isArray(todayPlan.card_ids) ? todayPlan.card_ids : [];
+      const doneSet = doneMap.get(today) || new Set();
+      document.getElementById("todayStatus").textContent =
+        isDayCompleteFromServer(requiredIds, doneSet) ? "Completed ✓" : "Not completed";
+    }
+
+    // Weekly completion tile
+    const pct = Math.round((completedDaysCount / targetDays) * 100);
     document.getElementById("weeklyStatus").textContent =
-      `${completedDays}/${targetDays} days (${isFinite(pct) ? pct : 0}%)`;
+      `${completedDaysCount}/${targetDays} days (${isFinite(pct) ? pct : 0}%)`;
   }
 
-  // Save Boxer ID (keep UI behaviour, but note: server resolves boxer from token)
+  /* =========================
+     MAIN RENDER
+  ========================== */
+  async function renderStats(){
+    const s = loadSettings();
+
+    // Autofill settings
+    if (s.boxer_id && document.getElementById("boxerId")) {
+      document.getElementById("boxerId").value = s.boxer_id;
+    }
+    const freq = s.frequency === 6 ? 6 : 5;
+    document.getElementById("freq").value = String(freq);
+    if (s.startDate){
+      document.getElementById("startDate").value = s.startDate;
+    }
+
+    // Ensure boxer_id exists (auto-resolve via /me if possible)
+    try {
+      const boxer_id = await getBoxerIdProduction();
+      document.getElementById("boxerIdHint").textContent = boxer_id ? "Resolved ✓ (from settings or /me)" : "";
+    } catch (e) {
+      document.getElementById("boxerIdHint").textContent = "Could not auto-resolve boxer_id from /me (check /me).";
+    }
+
+    // Pull DB completions for a wide window (covers week strip + today)
+    const today = todayISO();
+    const fromISO = addDaysISO(today, -120);
+    const toISO   = addDaysISO(today,  1);
+
+    let doneMap = new Map();
+    try {
+      const payload = await fetchCompletionsWindow(fromISO, toISO);
+      doneMap = buildDoneMapFromServerPayload(payload);
+    } catch (e) {
+      console.warn("Dashboard: completions fetch failed; showing as pending.", e);
+      // leave doneMap empty (shows pending rather than incorrect)
+    }
+
+    await renderTodayFocus();
+    await renderWeekStripAndStats(doneMap);
+  }
+
+  /* =========================
+     SAVE HANDLERS
+  ========================== */
   document.getElementById("saveBoxerId").onclick = async () => {
     const val = (document.getElementById("boxerId").value || "").trim();
     if (!val) return;
@@ -327,8 +539,7 @@
 
     document.getElementById("boxerIdSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("boxerIdSaved").textContent = "", 1500);
-
-    await renderDashboardFromServer();
+    await renderStats();
   };
 
   document.getElementById("saveFreq").onclick = async () => {
@@ -337,7 +548,7 @@
     saveSettings(s);
     document.getElementById("freqSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("freqSaved").textContent = "", 1500);
-    await renderDashboardFromServer();
+    await renderStats();
   };
 
   document.getElementById("saveStart").onclick = async () => {
@@ -348,17 +559,10 @@
     saveSettings(s);
     document.getElementById("startSaved").textContent = "Saved ✓";
     setTimeout(() => document.getElementById("startSaved").textContent = "", 1500);
-    await renderDashboardFromServer();
+    await renderStats();
   };
 
-  // Boot
-  renderDashboardFromServer().catch(err => {
-    console.error(err);
-    document.getElementById("todayStatus").textContent = "Error";
-    document.getElementById("weeklyStatus").textContent = "Error";
-    document.getElementById("todayFocusMeta").textContent = "Failed to load dashboard (check console).";
-    document.getElementById("weekStripMeta").textContent = "Failed to load dashboard (check console).";
-    document.getElementById("weekStrip").innerHTML = "";
-    renderFocusList([]);
-  });
+  renderStats();
 </script>
+</body>
+</html>
