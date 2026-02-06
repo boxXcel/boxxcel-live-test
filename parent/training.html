@@ -57,23 +57,62 @@ renderTopbar("boxXcel — Parent view");
 renderNav();
 
 /* ============================================================
-   CONFIG (same as Training page)
+   CONFIG
 ============================================================ */
-const SETTINGS_KEY    = "boxxcel_settings_v1";
-const COMPLETIONS_KEY = "boxxcel_completions_v1";
+const SETTINGS_KEY = "boxxcel_settings_v1";
 
+// ✅ IMPORTANT: correct base (5l4)
 const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
 const PROGRAMME = "12wk_fundamentals";
 const AGE_GROUP = "12-15";
 
 /* ============================================================
-   API HELPERS
+   AUTH / HEADERS
+============================================================ */
+function getIdToken() {
+  return localStorage.getItem("id_token") || localStorage.getItem("access_token") || "";
+}
+function authHeadersJson() {
+  const t = getIdToken();
+  return {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + t,
+  };
+}
+
+/* ============================================================
+   SAFE JSON FETCH
+============================================================ */
+async function apiGetJson(url) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: authHeadersJson(),
+    cache: "no-store",
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  if (!res.ok) {
+    const msg = (data && (data.error || data.message)) ? (data.error || data.message) : (text || `HTTP ${res.status}`);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* ============================================================
+   API URLs
 ============================================================ */
 function cardsApiUrl() {
   return `${API_BASE}/api/cards?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}`;
 }
 function planApiUrlForWeek(week) {
   return `${API_BASE}/api/plan?programme=${encodeURIComponent(PROGRAMME)}&age=${encodeURIComponent(AGE_GROUP)}&week=${encodeURIComponent(week)}`;
+}
+function meApiUrl() {
+  return `${API_BASE}/me`;
+}
+function completionsApiUrl(fromISO, toISO) {
+  return `${API_BASE}/api/boxer/completions?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`;
 }
 
 /* ============================================================
@@ -88,21 +127,28 @@ function esc(s){
     .replaceAll("'","&#039;");
 }
 
-function todayISO(){
-  const d = new Date();
+function isoFromDateObj(d){
   const off = d.getTimezoneOffset();
   const local = new Date(d.getTime() - off * 60000);
   return local.toISOString().slice(0,10);
+}
+
+function todayISO(){
+  return isoFromDateObj(new Date());
+}
+
+function addDaysISO(baseISO, days){
+  const d = new Date(baseISO + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return isoFromDateObj(d);
 }
 
 function loadSettings(){
   try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
   catch { return {}; }
 }
-
-function loadCompletions(){
-  try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
-  catch { return {}; }
+function saveSettings(obj){
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj));
 }
 
 function daysBetween(startISO, endISO){
@@ -124,25 +170,72 @@ function getWeekAndDay(dayNumber){
   };
 }
 
-function getCompletedSetFor(dateISO){
-  const all = loadCompletions();
-  const d = all[dateISO] || { cards: [] };
-  return new Set(d.cards || []);
-}
-
-function getRequiredFor(dateISO){
-  const all = loadCompletions();
-  const d = all[dateISO] || {};
-  return Array.isArray(d.required) ? d.required : [];
-}
-
 function list(arr){
   if (!arr || !arr.length) return `<div class="small">—</div>`;
   return `<ul class="small">${arr.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
 }
 
 /* ============================================================
-   CARD RENDER (READ-ONLY)
+   BOXER ID RESOLUTION
+============================================================ */
+async function getBoxerIdProduction(){
+  const s = loadSettings();
+  if (s.boxer_id) return s.boxer_id;
+
+  if (typeof getBoxerId === "function") {
+    const maybe = getBoxerId();
+    if (maybe) {
+      s.boxer_id = maybe;
+      saveSettings(s);
+      return maybe;
+    }
+  }
+
+  const me = await apiGetJson(meApiUrl());
+  const boxer_id = me && (me.boxer_id || (me.data && me.data.boxer_id));
+  if (!boxer_id) throw new Error("Could not resolve boxer_id from /me");
+
+  s.boxer_id = boxer_id;
+  saveSettings(s);
+  return boxer_id;
+}
+
+/* ============================================================
+   COMPLETIONS: SERVER -> Map(date -> Set(card_id))
+============================================================ */
+function buildDoneMapFromServerPayload(payload){
+  const doneByDate = new Map();
+
+  if (payload && Array.isArray(payload.completions)) {
+    for (const row of payload.completions) {
+      if (!row) continue;
+      const date = row.log_date;
+      if (!doneByDate.has(date)) doneByDate.set(date, new Set());
+      if (row.is_done) doneByDate.get(date).add(row.card_id);
+      else doneByDate.get(date).delete(row.card_id);
+    }
+  }
+
+  if (payload && payload.by_date) {
+    for (const [date, arr] of Object.entries(payload.by_date)) {
+      const set = new Set();
+      (arr || []).forEach(x => { if (x && x.is_done) set.add(x.card_id); });
+      doneByDate.set(date, set);
+    }
+  }
+
+  return doneByDate;
+}
+
+async function fetchCompletionsWindow(fromISO, toISO){
+  await getBoxerIdProduction(); // ensure boxer_id is set/stable
+  const data = await apiGetJson(completionsApiUrl(fromISO, toISO));
+  if (!data || data.ok !== true) throw new Error("Completions API returned unexpected response");
+  return data;
+}
+
+/* ============================================================
+   CARD RENDER (READ ONLY)
 ============================================================ */
 function cardHtmlReadOnly(c, done){
   if (!c){
@@ -175,11 +268,12 @@ function cardHtmlReadOnly(c, done){
 }
 
 /* ============================================================
-   WEEK SUMMARY (7 days)
+   WEEK SUMMARY (Programme week) using DB completions
 ============================================================ */
-function renderWeekSummary(plan, cardsMap, week){
-  const startDate = loadSettings().startDate;
-  // If startDate missing, we still show a simple weekly completion based on stored required[]/cards[] per date
+function renderWeekSummary(plan, week, doneMap){
+  const s = loadSettings();
+  const startDate = s.startDate || null;
+
   const weekBaseDay = (week - 1) * 7 + 1;
 
   const rows = [];
@@ -190,35 +284,34 @@ function renderWeekSummary(plan, cardsMap, week){
     const dayPlan = plan.days.find(x => x.day === d);
     const programmeDayNumber = weekBaseDay + (d - 1);
 
-    // derive date for that programme day if startDate exists
     let dateISO = null;
     if (startDate){
       const date = new Date(startDate + "T00:00:00");
       date.setDate(date.getDate() + (programmeDayNumber - 1));
-      const off = date.getTimezoneOffset();
-      const local = new Date(date.getTime() - off * 60000);
-      dateISO = local.toISOString().slice(0,10);
+      dateISO = isoFromDateObj(date);
     }
 
-    const requiredIds = (dateISO ? getRequiredFor(dateISO) : (dayPlan?.card_ids || []));
-    const completed = (dateISO ? getCompletedSetFor(dateISO) : new Set());
+    const label = dayPlan ? `${dayPlan.day}: ${dayPlan.name}` : `Day ${d}`;
+    const type  = dayPlan ? dayPlan.type : "training";
 
-    // if no stored completions for derived date, we still compute done count as 0 (parent view is honest)
-    const requiredCount = Array.isArray(requiredIds) ? requiredIds.length : 0;
+    if (type === "rest") {
+      rows.push({ label, dateISO, status: "Rest" });
+      continue;
+    }
+
+    const requiredIds = (dayPlan && Array.isArray(dayPlan.card_ids)) ? dayPlan.card_ids : [];
+    const requiredCount = requiredIds.length;
+
+    const doneSet = (dateISO && doneMap) ? (doneMap.get(dateISO) || new Set()) : new Set();
     let doneCount = 0;
-    if (dateISO && requiredCount){
-      for (const id of requiredIds) if (completed.has(id)) doneCount++;
-    }
+    for (const id of requiredIds) if (doneSet.has(id)) doneCount++;
 
     requiredTotal += requiredCount;
     doneTotal += doneCount;
 
-    const label = dayPlan ? `${dayPlan.day}: ${dayPlan.name}` : `Day ${d}`;
-    const type = dayPlan ? dayPlan.type : "training";
     const status =
-      type === "rest" ? "Rest" :
       requiredCount === 0 ? "Optional" :
-      (dateISO ? (doneCount >= requiredCount ? "Completed ✓" : `${doneCount}/${requiredCount}`) : "—");
+      (doneCount >= requiredCount ? "Completed ✓" : `${doneCount}/${requiredCount}`);
 
     rows.push({ label, dateISO, status });
   }
@@ -260,11 +353,23 @@ async function load(){
 
   const cards = await cardsRes.json();
   const plan  = await planRes.json();
-
   const cardsMap = Object.fromEntries(cards.map(c => [c.id, c]));
 
+  // fetch completions (DB truth)
+  const today = todayISO();
+  const fromISO = addDaysISO(today, -120);
+  const toISO   = addDaysISO(today,  1);
+
+  let doneMap = new Map();
+  try {
+    const payload = await fetchCompletionsWindow(fromISO, toISO);
+    doneMap = buildDoneMapFromServerPayload(payload);
+  } catch (e) {
+    console.warn("Parent training: completions fetch failed; showing as not completed.", e);
+  }
+
   // Week summary
-  renderWeekSummary(plan, cardsMap, week);
+  renderWeekSummary(plan, week, doneMap);
 
   // Today
   const dayPlan = plan.days.find(d => d.day === dayInWeek);
@@ -275,6 +380,7 @@ async function load(){
   }
 
   document.getElementById("dayTitle").textContent = `Today — ${dayPlan.name}`;
+
   if (dayPlan.type === "rest"){
     document.getElementById("dayMeta").textContent = "Rest day";
     document.getElementById("cards").innerHTML =
@@ -282,20 +388,19 @@ async function load(){
     return;
   }
 
-  // derive today date ISO for completion read
   const dateISO = todayISO();
-  const done = getCompletedSetFor(dateISO);
+  const doneSet = doneMap.get(dateISO) || new Set();
 
-  const required = getRequiredFor(dateISO);
-  const requiredText =
-    Array.isArray(required) && required.length
-      ? `Required cards: ${required.length}`
-      : (dayPlan.type === "optional" ? "Optional session" : "Required cards not yet set (complete once in Training view)");
+  const requiredIds = Array.isArray(dayPlan.card_ids) ? dayPlan.card_ids : [];
+  const requiredCount = requiredIds.length;
+  const doneCount = requiredIds.reduce((n, id) => n + (doneSet.has(id) ? 1 : 0), 0);
 
-  document.getElementById("dayMeta").textContent = requiredText;
+  document.getElementById("dayMeta").textContent =
+    requiredCount ? `Required cards: ${doneCount}/${requiredCount}` :
+    (dayPlan.type === "optional" ? "Optional session" : "No cards set");
 
   document.getElementById("cards").innerHTML =
-    dayPlan.card_ids.map(id => cardHtmlReadOnly(cardsMap[id], done.has(id))).join("");
+    requiredIds.map(id => cardHtmlReadOnly(cardsMap[id], doneSet.has(id))).join("");
 }
 
 /* ============================================================

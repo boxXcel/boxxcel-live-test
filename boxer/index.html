@@ -14,7 +14,7 @@
   <div class="container">
     <div data-nav></div>
 
-    <!-- Boxer ID (NEW) -->
+    <!-- Boxer ID (kept, but /me can also resolve) -->
     <div class="card">
       <strong>Boxer ID</strong>
       <div class="small">
@@ -31,6 +31,8 @@
         <button class="btn" id="saveBoxerId" type="button">Save</button>
         <span class="small" id="boxerIdSaved"></span>
       </div>
+
+      <div class="small" style="margin-top:8px; opacity:.85;" id="boxerIdHint"></div>
     </div>
 
     <!-- Training frequency -->
@@ -121,11 +123,22 @@
   renderTopbar("boxXcel — Boxer");
   renderNav();
 
+  /* =========================
+     CONFIG
+  ========================== */
   const SETTINGS_KEY = "boxxcel_settings_v1";
-  const COMPLETIONS_KEY = "boxxcel_completions_v1";
 
+  // ✅ IMPORTANT: correct base (5l4)
+  const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+
+  // Dashboard uses static plan json (as you already do)
   const CARDS_URL = "/boxer/data/training_cards_12_15.json";
+  const PROGRAMME = "12wk_fundamentals";
+  const AGE_GROUP = "12-15";
 
+  /* =========================
+     HELPERS
+  ========================== */
   function esc(s){
     return String(s ?? "")
       .replaceAll("&","&amp;")
@@ -135,29 +148,46 @@
       .replaceAll("'","&#039;");
   }
 
-  function todayISO(){
-    const d = new Date();
+  function isoFromDateObj(d){
     const off = d.getTimezoneOffset();
     const local = new Date(d.getTime() - off * 60000);
     return local.toISOString().slice(0,10);
+  }
+
+  function todayISO(){ return isoFromDateObj(new Date()); }
+
+  function addDaysISO(baseISO, days){
+    const d = new Date(baseISO + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    return isoFromDateObj(d);
   }
 
   function loadSettings(){
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
     catch { return {}; }
   }
-
   function saveSettings(s){
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
 
-  function loadCompletions(){
-    try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || "{}"); }
-    catch { return {}; }
+  function getIdToken(){
+    return localStorage.getItem("id_token") || localStorage.getItem("access_token") || "";
+  }
+  function authHeadersJson(){
+    const t = getIdToken();
+    return { "Content-Type":"application/json", "Authorization":"Bearer " + t };
   }
 
-  function saveCompletions(obj){
-    localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(obj));
+  async function apiGetJson(url){
+    const res = await fetch(url, { method:"GET", headers: authHeadersJson(), cache:"no-store" });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    if (!res.ok){
+      const msg = (data && (data.error || data.message)) ? (data.error || data.message) : (text || `HTTP ${res.status}`);
+      throw new Error(msg);
+    }
+    return data;
   }
 
   function daysBetween(startISO, endISO){
@@ -180,65 +210,88 @@
   }
 
   function getPlanUrlForWeek(week){
+    // keep your existing behaviour
     if (week === 2) return "/boxer/data/plan_12_15_week2.json";
     return "/boxer/data/plan_12_15_week1.json";
   }
 
-  // Day is complete ONLY if all required card IDs are completed
-  function isDayComplete(date){
-    const all = loadCompletions();
-    const d = all[date];
-    if (!d) return false;
-
-    const required = Array.isArray(d.required) ? d.required : [];
-    const done = Array.isArray(d.cards) ? d.cards : [];
-
-    if (required.length === 0) return false; // rest/optional days don’t count
-    return required.every(id => done.includes(id));
+  function startOfProgrammeWeek(startDateISO, weekNumber){
+    const start = new Date(startDateISO + "T00:00:00");
+    const d = new Date(start);
+    d.setDate(start.getDate() + (weekNumber - 1) * 7);
+    return isoFromDateObj(d);
   }
 
-  function datesLast7(){
-    const out = [];
-    const now = new Date();
-    for(let i=0;i<7;i++){
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const off = d.getTimezoneOffset();
-      const local = new Date(d.getTime() - off * 60000);
-      out.push(local.toISOString().slice(0,10));
+  /* =========================
+     BOXER ID (PRODUCTION)
+     - settings.boxer_id if present
+     - else /me
+  ========================== */
+  function meApiUrl(){ return `${API_BASE}/me`; }
+
+  async function getBoxerIdProduction(){
+    const s = loadSettings();
+    if (s.boxer_id) return s.boxer_id;
+
+    if (typeof getBoxerId === "function"){
+      const maybe = getBoxerId();
+      if (maybe){
+        s.boxer_id = maybe;
+        saveSettings(s);
+        return maybe;
+      }
     }
-    return out;
+
+    const me = await apiGetJson(meApiUrl());
+    const boxer_id = me && (me.boxer_id || (me.data && me.data.boxer_id));
+    if (!boxer_id) throw new Error("Could not resolve boxer_id from /me");
+
+    s.boxer_id = boxer_id;
+    saveSettings(s);
+    return boxer_id;
   }
 
-  // Ensure today's "required" cards are set even if user doesn't open Training
-  async function ensureTodayRequiredIsSet(){
-    const settings = loadSettings();
-    const freq = settings.frequency === 6 ? 6 : 5;
-
-    const programmeDay = getProgrammeDayNumber();
-    const { week, dayInWeek } = getWeekAndDay(programmeDay);
-    const planUrl = getPlanUrlForWeek(week);
-
-    const res = await fetch(planUrl, { cache: "no-store" });
-    if (!res.ok) return;
-
-    const plan = await res.json();
-    const dayPlan = (plan.days || []).find(d => d.day === dayInWeek);
-    if (!dayPlan) return;
-
-    const date = todayISO();
-
-    const required =
-      (dayInWeek === 6 && dayPlan.type === "optional" && freq === 5)
-        ? []
-        : (dayPlan.card_ids || []);
-
-    const all = loadCompletions();
-    const existing = all[date] || { cards: [] };
-    all[date] = { ...existing, required };
-    saveCompletions(all);
+  /* =========================
+     COMPLETIONS (SERVER TRUTH)
+  ========================== */
+  function completionsApiUrl(fromISO, toISO){
+    return `${API_BASE}/api/boxer/completions?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`;
   }
 
+  function buildDoneMapFromServerPayload(payload){
+    const doneByDate = new Map();
+
+    if (payload && Array.isArray(payload.completions)){
+      for (const row of payload.completions){
+        if (!row) continue;
+        const date = row.log_date;
+        if (!doneByDate.has(date)) doneByDate.set(date, new Set());
+        if (row.is_done) doneByDate.get(date).add(row.card_id);
+        else doneByDate.get(date).delete(row.card_id);
+      }
+    }
+
+    if (payload && payload.by_date){
+      for (const [date, arr] of Object.entries(payload.by_date)){
+        const set = new Set();
+        (arr || []).forEach(x => { if (x && x.is_done) set.add(x.card_id); });
+        doneByDate.set(date, set);
+      }
+    }
+
+    return doneByDate;
+  }
+
+  async function fetchCompletionsWindow(fromISO, toISO){
+    await getBoxerIdProduction(); // ensure boxer_id exists in settings
+    const data = await apiGetJson(completionsApiUrl(fromISO, toISO));
+    if (!data || data.ok !== true) throw new Error("Completions API returned unexpected response");
+    return data;
+  }
+
+  /* =========================
+     UI RENDERERS
+  ========================== */
   function renderFocusList(items){
     const holder = document.getElementById("todayFocusList");
     if (!items || items.length === 0){
@@ -311,23 +364,6 @@
     renderFocusList(titles);
   }
 
-  function startOfProgrammeWeek(startDateISO, weekNumber){
-    const start = new Date(startDateISO + "T00:00:00");
-    const d = new Date(start);
-    d.setDate(start.getDate() + (weekNumber - 1) * 7);
-    const off = d.getTimezoneOffset();
-    const local = new Date(d.getTime() - off * 60000);
-    return local.toISOString().slice(0,10);
-  }
-
-  function addDays(iso, days){
-    const d = new Date(iso + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    const off = d.getTimezoneOffset();
-    const local = new Date(d.getTime() - off * 60000);
-    return local.toISOString().slice(0,10);
-  }
-
   function renderWeekStripDay(label, state, isToday){
     const base =
       "display:inline-flex; align-items:center; justify-content:center;" +
@@ -346,7 +382,15 @@
     return `<div title="${title}" style="${base}${ring}">${symbol} ${label}</div>`;
   }
 
-  async function renderWeekStrip(){
+  function isDayCompleteFromServer(requiredIds, doneSet){
+    if (!requiredIds || requiredIds.length === 0) return false;
+    for (const id of requiredIds){
+      if (!doneSet.has(id)) return false;
+    }
+    return true;
+  }
+
+  async function renderWeekStripAndStats(doneMap){
     const meta = document.getElementById("weekStripMeta");
     const holder = document.getElementById("weekStrip");
 
@@ -362,6 +406,8 @@
       holder.innerHTML = ["D1","D2","D3","D4","D5","D6","D7"]
         .map(d => renderWeekStripDay(d, "pending", false))
         .join("");
+      document.getElementById("todayStatus").textContent = "—";
+      document.getElementById("weeklyStatus").textContent = "—";
       return;
     }
 
@@ -369,6 +415,8 @@
     if (!planRes.ok){
       meta.textContent = "Could not load weekly plan.";
       holder.innerHTML = "";
+      document.getElementById("todayStatus").textContent = "—";
+      document.getElementById("weeklyStatus").textContent = "—";
       return;
     }
 
@@ -377,14 +425,20 @@
 
     const weekStartISO = startOfProgrammeWeek(settings.startDate, week);
     const today = todayISO();
-
     meta.textContent = `Week ${week} overview (today highlighted)`;
 
     const pieces = [];
+    let completedDaysCount = 0;
+
+    // We define "required training days" as:
+    // - D1..D5 always training
+    // - D6 optional if freq=5, required if freq=6 and plan says optional
+    // - Rest days never count
+    let targetDays = freq;
 
     for (let d = 1; d <= 7; d++){
       const dayPlan = days.find(x => x.day === d) || { type:"training", card_ids:[] };
-      const dateISO = addDays(weekStartISO, d - 1);
+      const dateISO = addDaysISO(weekStartISO, d - 1);
 
       let state = "pending";
 
@@ -393,63 +447,86 @@
       } else if (d === 6 && dayPlan.type === "optional" && freq === 5){
         state = "optional";
       } else {
-        const required =
-          (d === 6 && dayPlan.type === "optional" && freq === 5)
-            ? []
-            : (dayPlan.card_ids || []);
-
-        const all = loadCompletions();
-        const existing = all[dateISO] || { cards: [] };
-        all[dateISO] = { ...existing, required };
-        saveCompletions(all);
-
-        state = isDayComplete(dateISO) ? "done" : "pending";
+        const requiredIds = Array.isArray(dayPlan.card_ids) ? dayPlan.card_ids : [];
+        const doneSet = doneMap.get(dateISO) || new Set();
+        const dayDone = isDayCompleteFromServer(requiredIds, doneSet);
+        state = dayDone ? "done" : "pending";
+        if (dayDone) completedDaysCount++;
       }
 
       pieces.push(renderWeekStripDay(`D${d}`, state, dateISO === today));
     }
 
     holder.innerHTML = pieces.join("");
+
+    // Today status
+    const todayPlan = days.find(x => x.day === dayInWeek) || { type:"training", card_ids:[] };
+    if (todayPlan.type === "rest"){
+      document.getElementById("todayStatus").textContent = "Rest day";
+    } else if (dayInWeek === 6 && todayPlan.type === "optional" && freq === 5){
+      document.getElementById("todayStatus").textContent = "Optional day";
+    } else {
+      const requiredIds = Array.isArray(todayPlan.card_ids) ? todayPlan.card_ids : [];
+      const doneSet = doneMap.get(today) || new Set();
+      document.getElementById("todayStatus").textContent =
+        isDayCompleteFromServer(requiredIds, doneSet) ? "Completed ✓" : "Not completed";
+    }
+
+    // Weekly completion tile
+    const pct = Math.round((completedDaysCount / targetDays) * 100);
+    document.getElementById("weeklyStatus").textContent =
+      `${completedDaysCount}/${targetDays} days (${isFinite(pct) ? pct : 0}%)`;
   }
 
+  /* =========================
+     MAIN RENDER
+  ========================== */
   async function renderStats(){
     const s = loadSettings();
 
-    // Autofill Boxer ID (NEW)
+    // Autofill settings
     if (s.boxer_id && document.getElementById("boxerId")) {
       document.getElementById("boxerId").value = s.boxer_id;
     }
-
     const freq = s.frequency === 6 ? 6 : 5;
     document.getElementById("freq").value = String(freq);
-
     if (s.startDate){
       document.getElementById("startDate").value = s.startDate;
     }
 
-    await ensureTodayRequiredIsSet();
+    // Ensure boxer_id exists (auto-resolve via /me if possible)
+    try {
+      const boxer_id = await getBoxerIdProduction();
+      document.getElementById("boxerIdHint").textContent = boxer_id ? "Resolved ✓ (from settings or /me)" : "";
+    } catch (e) {
+      document.getElementById("boxerIdHint").textContent = "Could not auto-resolve boxer_id from /me (check /me).";
+    }
 
+    // Pull DB completions for a wide window (covers week strip + today)
     const today = todayISO();
-    document.getElementById("todayStatus").textContent =
-      isDayComplete(today) ? "Completed ✓" : "Not completed";
+    const fromISO = addDaysISO(today, -120);
+    const toISO   = addDaysISO(today,  1);
 
-    const last7 = datesLast7();
-    const completedDays = last7.filter(isDayComplete).length;
-    const pct = Math.round((completedDays / freq) * 100);
-
-    document.getElementById("weeklyStatus").textContent =
-      `${completedDays}/${freq} days (${isFinite(pct) ? pct : 0}%)`;
+    let doneMap = new Map();
+    try {
+      const payload = await fetchCompletionsWindow(fromISO, toISO);
+      doneMap = buildDoneMapFromServerPayload(payload);
+    } catch (e) {
+      console.warn("Dashboard: completions fetch failed; showing as pending.", e);
+      // leave doneMap empty (shows pending rather than incorrect)
+    }
 
     await renderTodayFocus();
-    await renderWeekStrip();
+    await renderWeekStripAndStats(doneMap);
   }
 
-  // Save Boxer ID (NEW)
+  /* =========================
+     SAVE HANDLERS
+  ========================== */
   document.getElementById("saveBoxerId").onclick = async () => {
     const val = (document.getElementById("boxerId").value || "").trim();
     if (!val) return;
 
-    // super light UUID check (optional)
     const looksUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
     if (!looksUuid) {
       alert("That doesn't look like a valid boxer ID (UUID). Please paste the full ID.");
