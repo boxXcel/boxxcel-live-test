@@ -41,7 +41,7 @@ self.addEventListener('fetch', event => {
 
         return fetch(event.request).then(
           response => {
-            // Check if we received a valid response
+            // Cache successful responses (2xx status codes)
             if (!response.ok) {
               return response;
             }
