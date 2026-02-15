@@ -7,6 +7,7 @@
 </head>
 <body>
 <script src="/auth/guard.js"></script>
+<script src="/assets/config.js"></script>
 
 <div class="shell">
   <div class="topbar" data-topbar></div>
@@ -128,8 +129,11 @@
   ========================== */
   const SETTINGS_KEY = "boxxcel_settings_v1";
 
-  // ✅ IMPORTANT: correct base (5l4)
-  const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+  // Load API_BASE from config and wait for it to be ready
+  let API_BASE = "";
+  const configReady = CONFIG.ready().then(config => {
+    API_BASE = config.apiBase;
+  });
 
   // Dashboard uses static plan json (as you already do)
   const CARDS_URL = "/boxer/data/training_cards_12_15.json";
@@ -179,6 +183,7 @@
   }
 
   async function apiGetJson(url){
+    await configReady; // Wait for config
     const res = await fetch(url, { method:"GET", headers: authHeadersJson(), cache:"no-store" });
     const text = await res.text();
     let data = null;

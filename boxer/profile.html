@@ -8,6 +8,7 @@
 </head>
 <body>
 <script src="/auth/guard.js"></script>
+<script src="/assets/config.js"></script>
 
 <div class="shell">
   <div class="topbar" data-topbar></div>
@@ -91,7 +92,12 @@
   renderNav();
 
   const SETTINGS_KEY = "boxxcel_settings_v1";
-  const API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+  let API_BASE = "";
+
+  // Load API_BASE from config and initialize when ready
+  const configReady = CONFIG.ready().then(config => {
+    API_BASE = config.apiBase;
+  });
 
   function loadSettings(){
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
@@ -125,6 +131,7 @@
   }
 
   async function apiGetProfile(boxer_id){
+    await configReady; // Wait for config
     const url = `${API_BASE}/api/boxer/profile?boxer_id=${encodeURIComponent(boxer_id)}`;
     const r = await fetch(url, { headers: authHeadersJson(), cache: "no-store" });
     const t = await r.text();
@@ -133,6 +140,7 @@
   }
 
   async function apiSaveProfile(payload){
+    await configReady; // Wait for config
     const url = `${API_BASE}/api/boxer/profile`;
     const r = await fetch(url, { method:"POST", headers: authHeadersJson(), body: JSON.stringify(payload) });
     const t = await r.text();

@@ -9,6 +9,7 @@
 <body>
 
 <script src="/auth/guard.js"></script>
+<script src="/assets/config.js"></script>
 
 <div class="shell">
   <div class="topbar" data-topbar></div>
@@ -44,8 +45,11 @@ renderNav();
 const SETTINGS_KEY    = "boxxcel_settings_v1";
 const COMPLETIONS_KEY = "boxxcel_completions_v1"; // local fallback cache only
 
-// ✅ IMPORTANT: correct API base (5l4 not 514)
-const API_BASE  = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+// Load API_BASE from config and wait for it to be ready
+let API_BASE = "";
+const configReady = CONFIG.ready().then(config => {
+  API_BASE = config.apiBase;
+});
 
 const PROGRAMME = "12wk_fundamentals";
 const AGE_GROUP = "12-15";
@@ -75,6 +79,7 @@ function authHeadersJson() {
    SAFE JSON FETCH HELPERS
 ============================================================ */
 async function apiGetJson(url, { authed = true } = {}) {
+  await configReady; // Wait for config
   const res = await fetch(url, {
     method: "GET",
     headers: authed ? authHeadersJson() : undefined,
@@ -93,6 +98,7 @@ async function apiGetJson(url, { authed = true } = {}) {
 }
 
 async function apiPostJson(url, bodyObj) {
+  await configReady; // Wait for config
   const res = await fetch(url, {
     method: "POST",
     headers: authHeadersJson(),
