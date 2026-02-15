@@ -59,7 +59,7 @@
    */
   function getConfigSync(key) {
     if (!configCache) {
-      console.warn('Config not loaded yet. Use getConfig() or ensure config is loaded first.');
+      console.warn('Config not loaded yet. Use CONFIG.get() or await CONFIG.ready() first.');
       return null;
     }
     return configCache[key];

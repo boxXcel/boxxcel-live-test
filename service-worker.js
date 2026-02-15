@@ -42,7 +42,7 @@ self.addEventListener('fetch', event => {
         return fetch(event.request).then(
           response => {
             // Check if we received a valid response
-            if (!response || !response.ok) {
+            if (!response.ok) {
               return response;
             }
 
