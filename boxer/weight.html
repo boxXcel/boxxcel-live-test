@@ -101,8 +101,9 @@
       } catch (e) {
         attempt++;
         if (attempt >= maxRetries) throw e;
-        // Wait before retry (exponential backoff: 1s, 2s, 4s)
-        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+        // Wait before retry (exponential backoff: 1s, 2s for first and second retry)
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        await new Promise(r => setTimeout(r, delay));
       }
     }
   }
