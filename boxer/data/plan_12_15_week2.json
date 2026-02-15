@@ -1,1 +1,47 @@
-{"training_plan": "Week 2 Training Plan"}
+{
+  "week": 2,
+  "days": [
+    {
+      "day": 1,
+      "name": "Monday - Fundamentals + Cardio",
+      "type": "training",
+      "card_ids": ["card-001", "card-002", "card-009"]
+    },
+    {
+      "day": 2,
+      "name": "Tuesday - Heavy Bag + Core",
+      "type": "training",
+      "card_ids": ["card-001", "card-003", "card-005"]
+    },
+    {
+      "day": 3,
+      "name": "Wednesday - Speed & Footwork",
+      "type": "training",
+      "card_ids": ["card-001", "card-004", "card-006"]
+    },
+    {
+      "day": 4,
+      "name": "Thursday - Rest Day",
+      "type": "rest",
+      "card_ids": []
+    },
+    {
+      "day": 5,
+      "name": "Friday - Mitts & Conditioning",
+      "type": "training",
+      "card_ids": ["card-001", "card-008", "card-005"]
+    },
+    {
+      "day": 6,
+      "name": "Saturday - Intensive Session",
+      "type": "training",
+      "card_ids": ["card-001", "card-003", "card-010", "card-005"]
+    },
+    {
+      "day": 7,
+      "name": "Sunday - Recovery & Stretch",
+      "type": "optional",
+      "card_ids": ["card-001", "card-007"]
+    }
+  ]
+}

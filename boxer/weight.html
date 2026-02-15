@@ -7,6 +7,7 @@
 </head>
 <body>
 <script src="/auth/guard.js"></script>
+<script src="/assets/config.js"></script>
 
 <div class="shell">
   <div class="topbar" data-topbar></div>
@@ -16,8 +17,8 @@
 
     <div class="card">
       <strong>Weight Tracker (Age 12–15)</strong>
-      <div class="small">
-        Enter today’s weight. This prototype stores data on this device only.
+      <div class="small" id="statusLine">
+        Enter today's weight. Saved to database and local backup.
       </div>
 
       <div style="margin-top:12px">
@@ -43,19 +44,152 @@
   renderNav();
 
   const KEY = "boxxcel_weights";
+  const SETTINGS_KEY = "boxxcel_settings_v1";
+  let API_BASE = "";
 
-  function saveWeight(){
-    const v = parseFloat(document.getElementById("weight").value);
-    if(!v || v <= 0) return;
+  // Initialize config
+  (async function initConfig() {
+    try {
+      const config = await CONFIG.load();
+      API_BASE = config.apiBase;
+    } catch (e) {
+      console.error("Failed to load config:", e);
+      // Fallback to hardcoded value
+      API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+    }
+  })();
 
-    const rows = JSON.parse(localStorage.getItem(KEY) || "[]");
-    rows.push({ date:new Date().toISOString().slice(0,10), kg:v });
-    localStorage.setItem(KEY, JSON.stringify(rows));
-    render();
+  function loadSettings(){
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
+    catch { return {}; }
   }
 
-  function render(){
+  function getBoxerId(){
+    const s = loadSettings();
+    return (s.boxer_id || s.boxerId || "").trim();
+  }
+
+  function getToken(){
+    return localStorage.getItem("id_token") || localStorage.getItem("access_token") || "";
+  }
+
+  function authHeadersJson(){
+    return {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + getToken(),
+    };
+  }
+
+  async function saveWeightToApi(boxerId, kg, date){
+    const url = `${API_BASE}/api/boxer/weight`;
+    const payload = { boxer_id: boxerId, weight_kg: kg, log_date: date };
+    
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: authHeadersJson(),
+          body: JSON.stringify(payload)
+        });
+
+        const text = await res.text();
+        if (!res.ok) {
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        return JSON.parse(text);
+      } catch (e) {
+        retries--;
+        if (retries === 0) throw e;
+        // Wait before retry (exponential backoff)
+        await new Promise(r => setTimeout(r, (4 - retries) * 1000));
+      }
+    }
+  }
+
+  async function loadWeightsFromApi(boxerId){
+    const url = `${API_BASE}/api/boxer/weights?boxer_id=${encodeURIComponent(boxerId)}`;
+    
+    try {
+      const res = await fetch(url, {
+        headers: authHeadersJson(),
+        cache: "no-store"
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const data = JSON.parse(text);
+      return data.weights || [];
+    } catch (e) {
+      console.warn("Failed to load weights from API:", e);
+      return null;
+    }
+  }
+
+  async function saveWeight(){
+    const v = parseFloat(document.getElementById("weight").value);
+    if(!v || v <= 0) {
+      alert("Please enter a valid weight.");
+      return;
+    }
+
+    const date = new Date().toISOString().slice(0,10);
+    const boxerId = getBoxerId();
+
+    // Always save to local storage as backup
     const rows = JSON.parse(localStorage.getItem(KEY) || "[]");
+    rows.push({ date, kg: v });
+    localStorage.setItem(KEY, JSON.stringify(rows));
+
+    // Try to save to API if boxer_id is available
+    if (boxerId) {
+      try {
+        document.getElementById("statusLine").textContent = "Saving to database...";
+        await saveWeightToApi(boxerId, v, date);
+        document.getElementById("statusLine").textContent = "Saved to database ✓";
+        setTimeout(() => {
+          document.getElementById("statusLine").textContent = "Enter today's weight. Saved to database and local backup.";
+        }, 3000);
+      } catch (e) {
+        console.error("Failed to save to API:", e);
+        document.getElementById("statusLine").textContent = 
+          "⚠ Saved locally only (API error: " + (e.message || "Unknown") + "). Will retry when online.";
+      }
+    } else {
+      document.getElementById("statusLine").textContent = 
+        "⚠ Saved locally only. Set boxer_id in Dashboard to enable cloud sync.";
+    }
+
+    render();
+    document.getElementById("weight").value = "";
+  }
+
+  async function render(){
+    const boxerId = getBoxerId();
+    let rows = JSON.parse(localStorage.getItem(KEY) || "[]");
+
+    // Try to load from API and merge with local
+    if (boxerId) {
+      try {
+        const apiWeights = await loadWeightsFromApi(boxerId);
+        if (apiWeights && apiWeights.length > 0) {
+          // Merge API weights with local, preferring API
+          const dateMap = new Map();
+          rows.forEach(r => dateMap.set(r.date, r.kg));
+          apiWeights.forEach(w => {
+            dateMap.set(w.log_date, w.weight_kg);
+          });
+          rows = Array.from(dateMap.entries())
+            .map(([date, kg]) => ({ date, kg }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+        }
+      } catch (e) {
+        console.warn("Using local cache only:", e);
+      }
+    }
+
     document.getElementById("log").innerHTML =
       rows.map(r => `${r.date} — ${r.kg} kg`).join("<br>") || "No entries yet.";
   }
