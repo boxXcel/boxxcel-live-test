@@ -127,25 +127,14 @@
     let REDIRECT_URI = "";
     let LOGOUT_URI = "";
 
-    // Initialize config
-    (async function initConfig() {
-      try {
-        const config = await CONFIG.load();
-        COGNITO_DOMAIN = config.cognitoDomain;
-        CLIENT_ID = config.clientId;
-        REDIRECT_URI = config.redirectUri;
-        LOGOUT_URI = config.logoutUri;
-        CANONICAL_ORIGIN = new URL(REDIRECT_URI).origin;
-      } catch (e) {
-        console.error("Failed to load config:", e);
-        // Fallback to hardcoded values
-        COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
-        CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
-        CANONICAL_ORIGIN = "https://www.boxxcel.com";
-        REDIRECT_URI = CANONICAL_ORIGIN + "/auth/callback.html";
-        LOGOUT_URI = CANONICAL_ORIGIN + "/";
-      }
-    })();
+    // Initialize config and wait for it to be ready
+    const configReady = CONFIG.ready().then(config => {
+      COGNITO_DOMAIN = config.cognitoDomain;
+      CLIENT_ID = config.clientId;
+      REDIRECT_URI = config.redirectUri;
+      LOGOUT_URI = config.logoutUri;
+      CANONICAL_ORIGIN = new URL(REDIRECT_URI).origin;
+    });
 
     const SCOPES = "openid email profile";
 
@@ -242,6 +231,7 @@ document.getElementById("enterBtn").style.display = authed ? "inline-block" : "n
 
     // ====== AUTH ACTIONS ======
     async function login() {
+      await configReady; // Wait for config
       // PKCE verifier stored only for this browser session
       const verifier = crypto.randomUUID() + crypto.randomUUID();
       sessionStorage.setItem("pkce_verifier", verifier);
@@ -262,20 +252,22 @@ document.getElementById("enterBtn").style.display = authed ? "inline-block" : "n
     }
 
     function logout() {
-      stopIdleTracking(); // stop timer immediately
+      configReady.then(() => {
+        stopIdleTracking(); // stop timer immediately
 
-      // Clear local tokens
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("id_token");
-      localStorage.removeItem("refresh_token");
+        // Clear local tokens
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("id_token");
+        localStorage.removeItem("refresh_token");
 
-      // End Cognito session too
-      const url =
-        COGNITO_DOMAIN + "/logout" +
-        "?client_id=" + encodeURIComponent(CLIENT_ID) +
-        "&logout_uri=" + encodeURIComponent(LOGOUT_URI);
+        // End Cognito session too
+        const url =
+          COGNITO_DOMAIN + "/logout" +
+          "?client_id=" + encodeURIComponent(CLIENT_ID) +
+          "&logout_uri=" + encodeURIComponent(LOGOUT_URI);
 
-      window.location.href = url;
+        window.location.href = url;
+      });
     }
 
     // ====== OPTIONAL: API wrapper (use later) ======

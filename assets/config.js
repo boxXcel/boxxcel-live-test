@@ -5,6 +5,7 @@
   // Cache for loaded config
   let configCache = null;
   let configPromise = null;
+  let isReady = false;
 
   /**
    * Load configuration from config.json
@@ -29,19 +30,23 @@
       .then(config => {
         configCache = config;
         configPromise = null;
+        isReady = true;
         return config;
       })
       .catch(err => {
         console.error('Error loading config:', err);
         configPromise = null;
         // Return fallback config with default values
-        return {
+        const fallback = {
           apiBase: "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod",
           cognitoDomain: "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com",
           clientId: "1hhh6m6lhs126argcqac9h93rc",
           redirectUri: "https://www.boxxcel.com/auth/callback.html",
           logoutUri: "https://www.boxxcel.com/"
         };
+        configCache = fallback;
+        isReady = true;
+        return fallback;
       });
 
     return configPromise;
@@ -70,10 +75,23 @@
     return key ? config[key] : config;
   }
 
+  /**
+   * Wait for config to be loaded and ready
+   * @returns {Promise<Object>} Configuration object
+   */
+  async function ready() {
+    return loadConfig();
+  }
+
   // Export global CONFIG object
   window.CONFIG = {
     load: loadConfig,
     get: getConfig,
-    getSync: getConfigSync
+    getSync: getConfigSync,
+    ready: ready,
+    isReady: () => isReady
   };
+
+  // Auto-load config on script load
+  loadConfig();
 })();

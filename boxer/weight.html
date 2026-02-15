@@ -47,17 +47,10 @@
   const SETTINGS_KEY = "boxxcel_settings_v1";
   let API_BASE = "";
 
-  // Initialize config
-  (async function initConfig() {
-    try {
-      const config = await CONFIG.load();
-      API_BASE = config.apiBase;
-    } catch (e) {
-      console.error("Failed to load config:", e);
-      // Fallback to hardcoded value
-      API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
-    }
-  })();
+  // Load API_BASE from config and wait for it to be ready
+  const configReady = CONFIG.ready().then(config => {
+    API_BASE = config.apiBase;
+  });
 
   function loadSettings(){
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); }
@@ -81,6 +74,7 @@
   }
 
   async function saveWeightToApi(boxerId, kg, date){
+    await configReady; // Wait for config
     const url = `${API_BASE}/api/boxer/weight`;
     const payload = { boxer_id: boxerId, weight_kg: kg, log_date: date };
     
@@ -108,6 +102,7 @@
   }
 
   async function loadWeightsFromApi(boxerId){
+    await configReady; // Wait for config
     const url = `${API_BASE}/api/boxer/weights?boxer_id=${encodeURIComponent(boxerId)}`;
     
     try {

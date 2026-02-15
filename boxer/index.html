@@ -129,17 +129,11 @@
   ========================== */
   const SETTINGS_KEY = "boxxcel_settings_v1";
 
-  // Load API_BASE from config
+  // Load API_BASE from config and wait for it to be ready
   let API_BASE = "";
-  (async function initConfig() {
-    try {
-      const config = await CONFIG.load();
-      API_BASE = config.apiBase;
-    } catch (e) {
-      console.error("Failed to load config:", e);
-      API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
-    }
-  })();
+  const configReady = CONFIG.ready().then(config => {
+    API_BASE = config.apiBase;
+  });
 
   // Dashboard uses static plan json (as you already do)
   const CARDS_URL = "/boxer/data/training_cards_12_15.json";
@@ -189,6 +183,7 @@
   }
 
   async function apiGetJson(url){
+    await configReady; // Wait for config
     const res = await fetch(url, { method:"GET", headers: authHeadersJson(), cache:"no-store" });
     const text = await res.text();
     let data = null;

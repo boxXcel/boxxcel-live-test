@@ -3,21 +3,12 @@ let COGNITO_DOMAIN = "";
 let CLIENT_ID = "";
 let LOGOUT_URI = "";
 
-// Initialize config
-(async function initAppConfig() {
-  try {
-    const config = await CONFIG.load();
-    COGNITO_DOMAIN = config.cognitoDomain;
-    CLIENT_ID = config.clientId;
-    LOGOUT_URI = config.logoutUri;
-  } catch (e) {
-    console.error("Failed to load config in app.js:", e);
-    // Fallback to hardcoded values
-    COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
-    CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
-    LOGOUT_URI = "https://www.boxxcel.com/";
-  }
-})();
+// Initialize config and wait for it to be ready
+const configReady = CONFIG.ready().then(config => {
+  COGNITO_DOMAIN = config.cognitoDomain;
+  CLIENT_ID = config.clientId;
+  LOGOUT_URI = config.logoutUri;
+});
 
 function decodeJwtPayload(token) {
   const part = token.split(".")[1];
@@ -37,15 +28,17 @@ function getUserEmail() {
 }
 
 function logout() {
-  localStorage.clear();
-  const url =
-    COGNITO_DOMAIN +
-    "/logout" +
-    "?client_id=" +
-    encodeURIComponent(CLIENT_ID) +
-    "&logout_uri=" +
-    encodeURIComponent(LOGOUT_URI);
-  window.location.href = url;
+  configReady.then(() => {
+    localStorage.clear();
+    const url =
+      COGNITO_DOMAIN +
+      "/logout" +
+      "?client_id=" +
+      encodeURIComponent(CLIENT_ID) +
+      "&logout_uri=" +
+      encodeURIComponent(LOGOUT_URI);
+    window.location.href = url;
+  });
 }
 
 function renderTopbar(title) {
