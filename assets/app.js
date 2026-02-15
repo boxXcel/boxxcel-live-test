@@ -1,10 +1,11 @@
 // Configuration values (loaded from config.json)
+// Note: configReady is declared in inline scripts in HTML files
 let COGNITO_DOMAIN = "";
 let CLIENT_ID = "";
 let LOGOUT_URI = "";
 
-// Initialize config and wait for it to be ready
-const configReady = CONFIG.ready().then(config => {
+// Initialize config values when CONFIG is ready
+CONFIG.ready().then(config => {
   COGNITO_DOMAIN = config.cognitoDomain;
   CLIENT_ID = config.clientId;
   LOGOUT_URI = config.logoutUri;
@@ -28,6 +29,7 @@ function getUserEmail() {
 }
 
 function logout() {
+  // configReady is declared in page-level scripts
   configReady.then(() => {
     localStorage.clear();
     const url =
