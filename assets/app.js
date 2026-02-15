@@ -1,6 +1,23 @@
-const COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
-const CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
-const LOGOUT_URI = "https://www.boxxcel.com/";
+// Configuration values (loaded from config.json)
+let COGNITO_DOMAIN = "";
+let CLIENT_ID = "";
+let LOGOUT_URI = "";
+
+// Initialize config
+(async function initAppConfig() {
+  try {
+    const config = await CONFIG.load();
+    COGNITO_DOMAIN = config.cognitoDomain;
+    CLIENT_ID = config.clientId;
+    LOGOUT_URI = config.logoutUri;
+  } catch (e) {
+    console.error("Failed to load config in app.js:", e);
+    // Fallback to hardcoded values
+    COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
+    CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
+    LOGOUT_URI = "https://www.boxxcel.com/";
+  }
+})();
 
 function decodeJwtPayload(token) {
   const part = token.split(".")[1];

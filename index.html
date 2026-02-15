@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>boxXcel</title>
+  <script src="/assets/config.js"></script>
 
   <style>
     body{
@@ -119,14 +120,32 @@
   </div>
 
   <script>
-    // ====== CONFIG (locked to your working setup) ======
-    const COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
-    const CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
+    // ====== CONFIG (loaded from config.json) ======
+    let COGNITO_DOMAIN = "";
+    let CLIENT_ID = "";
+    let CANONICAL_ORIGIN = "";
+    let REDIRECT_URI = "";
+    let LOGOUT_URI = "";
 
-    // Canonical site (your working login)
-    const CANONICAL_ORIGIN = "https://www.boxxcel.com";
-const REDIRECT_URI = CANONICAL_ORIGIN + "/auth/callback.html";
-const LOGOUT_URI = CANONICAL_ORIGIN + "/";
+    // Initialize config
+    (async function initConfig() {
+      try {
+        const config = await CONFIG.load();
+        COGNITO_DOMAIN = config.cognitoDomain;
+        CLIENT_ID = config.clientId;
+        REDIRECT_URI = config.redirectUri;
+        LOGOUT_URI = config.logoutUri;
+        CANONICAL_ORIGIN = new URL(REDIRECT_URI).origin;
+      } catch (e) {
+        console.error("Failed to load config:", e);
+        // Fallback to hardcoded values
+        COGNITO_DOMAIN = "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com";
+        CLIENT_ID = "1hhh6m6lhs126argcqac9h93rc";
+        CANONICAL_ORIGIN = "https://www.boxxcel.com";
+        REDIRECT_URI = CANONICAL_ORIGIN + "/auth/callback.html";
+        LOGOUT_URI = CANONICAL_ORIGIN + "/";
+      }
+    })();
 
     const SCOPES = "openid email profile";
 
@@ -290,6 +309,17 @@ document.getElementById("enterBtn").style.display = authed ? "inline-block" : "n
         return;
       }
       syncUi();
+
+      // Register service worker for offline support
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(registration => {
+            console.log('Service Worker registered:', registration.scope);
+          })
+          .catch(error => {
+            console.log('Service Worker registration failed:', error);
+          });
+      }
     })();
   </script>
 </body>

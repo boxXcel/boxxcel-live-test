@@ -9,6 +9,7 @@
 <body>
 
 <script src="/auth/guard.js"></script>
+<script src="/assets/config.js"></script>
 
 <div class="shell">
   <div class="topbar" data-topbar></div>
@@ -99,8 +100,21 @@
     // "someone@boxxcel.com",
   ];
 
-  // ✅ Your API base
-  const DEFAULT_API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+  // Load API_BASE from config
+  let DEFAULT_API_BASE = "";
+  (async function initConfig() {
+    try {
+      const config = await CONFIG.load();
+      DEFAULT_API_BASE = config.apiBase;
+      // Auto-populate the API base field
+      if (document.getElementById("apiBase")) {
+        document.getElementById("apiBase").value = DEFAULT_API_BASE;
+      }
+    } catch (e) {
+      console.error("Failed to load config:", e);
+      DEFAULT_API_BASE = "https://0v4tvwe5l4.execute-api.eu-west-2.amazonaws.com/prod";
+    }
+  })();
 
   function decodeJwtPayload(token) {
     const part = token.split(".")[1];

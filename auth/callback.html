@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Signing in…</title>
+  <script src="/assets/config.js"></script>
 </head>
 <body>
 <script>
@@ -22,13 +23,26 @@
     return;
   }
 
-  const tokenEndpoint =
-    "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com/oauth2/token";
+  // Load config
+  let config;
+  try {
+    config = await CONFIG.load();
+  } catch (e) {
+    console.error("Failed to load config:", e);
+    // Fallback
+    config = {
+      cognitoDomain: "https://eu-west-2744agx2nc.auth.eu-west-2.amazoncognito.com",
+      clientId: "1hhh6m6lhs126argcqac9h93rc",
+      redirectUri: "https://www.boxxcel.com/auth/callback.html"
+    };
+  }
+
+  const tokenEndpoint = config.cognitoDomain + "/oauth2/token";
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",
-    client_id: "1hhh6m6lhs126argcqac9h93rc",
-    redirect_uri: "https://www.boxxcel.com/auth/callback.html",
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
     code,
     code_verifier: verifier
   });
