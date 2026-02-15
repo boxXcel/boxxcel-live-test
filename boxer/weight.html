@@ -95,8 +95,8 @@
       } catch (e) {
         retries--;
         if (retries === 0) throw e;
-        // Wait before retry (exponential backoff)
-        await new Promise(r => setTimeout(r, (4 - retries) * 1000));
+        // Wait before retry (proper exponential backoff: 1s, 2s, 4s)
+        await new Promise(r => setTimeout(r, Math.pow(2, 3 - retries) * 1000));
       }
     }
   }
@@ -169,7 +169,7 @@
     if (boxerId) {
       try {
         const apiWeights = await loadWeightsFromApi(boxerId);
-        if (apiWeights && apiWeights.length > 0) {
+        if (apiWeights !== null && apiWeights.length > 0) {
           // Merge API weights with local, preferring API
           const dateMap = new Map();
           rows.forEach(r => dateMap.set(r.date, r.kg));

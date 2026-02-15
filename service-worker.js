@@ -62,7 +62,19 @@ self.addEventListener('fetch', event => {
           }
         ).catch(() => {
           // Network failed, try to serve from cache
-          return caches.match(event.request);
+          return caches.match(event.request).then(cachedResponse => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // No cache available either - return a basic offline response
+            return new Response('Offline - resource not cached', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({
+                'Content-Type': 'text/plain'
+              })
+            });
+          });
         });
       })
   );
